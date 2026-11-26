@@ -10,7 +10,7 @@ export const nicknameSchema = z
   .trim()
   .min(2, 'Нікнейм має містити щонайменше 2 символи')
   .max(24, 'Нікнейм має бути не довшим за 24 символи')
-  .regex(/^[\p{L}\p{N} _.\-]+$/u, 'Нікнейм може містити лише літери, цифри, пробіл, _ . -');
+  .regex(/^[\p{L}\p{N} _.'’ʼ\-]+$/u, "Нікнейм може містити лише літери, цифри, пробіл, апостроф і символи _ . -");
 
 export const registerSchema = z.object({ email, nickname: nicknameSchema, password });
 export type RegisterInput = z.infer<typeof registerSchema>;

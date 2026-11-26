@@ -221,6 +221,7 @@ export interface ClientToServerEvents {
 export interface ServerToClientEvents {
   'room:state': (s: RoomStateDto) => void;
   'room:chat': (m: ChatMessageDto) => void;
+  'room:chat_sync': (messages: ChatMessageDto[]) => void;
   'room:kicked': (p: { code: string; banned: boolean }) => void;
   'room:closed': (p: { code: string }) => void;
   'player:view': (v: unknown) => void;

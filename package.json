@@ -16,7 +16,8 @@
     "build": "npm run build -w @jvof/web",
     "start": "npm run start -w @jvof/server",
     "test": "vitest run",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "bots": "npm run bots -w @jvof/server --"
   },
   "engines": {
     "node": ">=22"

@@ -9,7 +9,8 @@
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "generate": "prisma generate",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "bots": "tsx scripts/bots.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.11",
-    "prisma": "^7.10.1"
+    "prisma": "^7.10.1",
+    "socket.io-client": "^4.8.4"
   }
 }
