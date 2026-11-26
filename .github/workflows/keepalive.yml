@@ -1,0 +1,23 @@
+# Будить сервер на Render увечері, щоб друзі не чекали хвилину на першому вході.
+# Вікно — 16:00–01:00 за Києвом (далі сервер сам себе пінгує, поки триває вікно або хтось грає).
+# GitHub запускає розклад за UTC, тому беремо ширший діапазон і фільтруємо за київським часом.
+name: keepalive
+
+on:
+  schedule:
+    - cron: '*/10 13-23 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Пінг у вечірньому вікні
+        run: |
+          H=$(TZ=Europe/Kyiv date +%-H)
+          if [ "$H" -ge 16 ] || [ "$H" -lt 1 ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            curl -fsS --retry 3 --retry-delay 20 --max-time 90 https://jvof-games.onrender.com/api/health
+          else
+            echo "Поза вікном (київська година $H) — нехай спить"
+          fi

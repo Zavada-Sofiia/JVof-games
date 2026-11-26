@@ -1,12 +1,14 @@
 import { buildApp } from './app';
 import { prisma } from './db';
 import { env } from './env';
+import { startKeepAlive } from './keepalive';
 import { createIO } from './realtime/io';
 import { roomManager } from './rooms/manager';
 
 const app = await buildApp();
 createIO(app.server);
 roomManager.start();
+startKeepAlive();
 
 // Після перезапуску партій у пам'яті вже немає: кімнати повертаються в лобі
 await prisma.room.updateMany({ where: { status: 'playing' }, data: { status: 'open' } });
