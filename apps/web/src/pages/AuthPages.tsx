@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { api } from '../lib/api';
 import { useAuth } from '../store/auth';
@@ -60,7 +60,7 @@ export function RegisterPage() {
   const [password, setPassword] = useState('');
   const { error, busy, submit } = useSubmit(async () => {
     await register(email, nickname, password);
-    toast('Акаунт створено! Ми надіслали лист для підтвердження пошти.', 'success');
+    toast('Акаунт створено! Ласкаво просимо 🎉', 'success');
   });
   return (
     <div className="page narrow">
@@ -145,35 +145,6 @@ export function ResetPage() {
           Зберегти пароль
         </button>
       </form>
-    </div>
-  );
-}
-
-export function VerifyPage() {
-  const [params] = useSearchParams();
-  const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading');
-  const [message, setMessage] = useState('');
-  useEffect(() => {
-    api('/auth/verify', { body: { token: params.get('token') ?? '' } })
-      .then(() => {
-        setState('ok');
-        const u = useAuth.getState().user;
-        if (u) useAuth.getState().setUser({ ...u, emailVerified: true });
-      })
-      .catch((e: Error) => {
-        setState('error');
-        setMessage(e.message);
-      });
-  }, [params]);
-  return (
-    <div className="page narrow">
-      <div className="card col">
-        <h1>Підтвердження пошти</h1>
-        {state === 'loading' && <p>Перевіряємо...</p>}
-        {state === 'ok' && <p>Пошту підтверджено. Дякуємо!</p>}
-        {state === 'error' && <p className="error-text">{message}</p>}
-        <Link to="/">На головну</Link>
-      </div>
     </div>
   );
 }

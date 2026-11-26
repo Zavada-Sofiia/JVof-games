@@ -12,7 +12,6 @@ export interface PublicUser {
 
 export interface MeDto extends PublicUser {
   email: string;
-  emailVerified: boolean;
   friendCode: string;
   createdAt: string;
   /** Коли знову можна змінити нікнейм (ISO), або null якщо вже можна */

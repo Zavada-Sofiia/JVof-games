@@ -166,35 +166,12 @@ export function RecentGames({ gameType, title = 'Останні партії' }:
   );
 }
 
-function VerifyBanner() {
-  const user = useAuth((s) => s.user);
-  const [sent, setSent] = useState(false);
-  if (!user || user.emailVerified) return null;
-  return (
-    <div className="card tight row wrap" style={{ borderColor: 'var(--warn)' }}>
-      <span className="grow">Підтвердіть пошту {user.email} — так ви зможете відновити пароль.</span>
-      <button
-        className="btn sm"
-        disabled={sent}
-        onClick={() =>
-          api('/auth/verify/resend', { body: {} })
-            .then(() => setSent(true))
-            .catch(toastError)
-        }
-      >
-        {sent ? 'Лист надіслано' : 'Надіслати лист ще раз'}
-      </button>
-    </div>
-  );
-}
-
 // ---------- головна ----------
 
 export function HomePage() {
   const user = useAuth((s) => s.user)!;
   return (
     <div className="page col" style={{ gap: '1.4rem' }}>
-      <VerifyBanner />
       <section className="hero">
         <span className="hero-emoji" aria-hidden>
           🎲

@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router';
+import { BellIcon, BellOffIcon, MoonIcon, SunIcon } from './components/icons';
 import { Avatar, Spinner, Toasts } from './components/ui';
 import { useRealtime } from './lib/realtime';
-import { ForgotPage, LoginPage, RegisterPage, ResetPage, VerifyPage } from './pages/AuthPages';
+import { ForgotPage, LoginPage, RegisterPage, ResetPage } from './pages/AuthPages';
 import { HomePage } from './pages/HomePage';
 import { HowToPlayPage, PrivacyPage } from './pages/InfoPages';
 import { MafiaPage } from './pages/MafiaPage';
@@ -31,11 +32,21 @@ function Header() {
         </nav>
       )}
       <span className="spacer" />
-      <button className="btn ghost sm" onClick={toggleSounds} title={sounds ? 'Вимкнути звуки подій' : 'Увімкнути звуки подій'}>
-        {sounds ? '🔔' : '🔕'}
+      <button
+        className={`icon-btn ${sounds ? '' : 'muted-state'}`}
+        onClick={toggleSounds}
+        title={sounds ? 'Вимкнути звуки подій' : 'Увімкнути звуки подій'}
+        aria-label={sounds ? 'Вимкнути звуки подій' : 'Увімкнути звуки подій'}
+      >
+        {sounds ? <BellIcon /> : <BellOffIcon />}
       </button>
-      <button className="btn ghost sm" onClick={toggleTheme} title="Змінити тему">
-        {theme === 'dark' ? '☀️' : '🌙'}
+      <button
+        className="icon-btn"
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Світла тема' : 'Темна тема'}
+        aria-label={theme === 'dark' ? 'Увімкнути світлу тему' : 'Увімкнути темну тему'}
+      >
+        {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
       </button>
       {user && (
         <Link to="/profile" className="row" style={{ color: 'var(--text)', textDecoration: 'none' }} title="Профіль">
@@ -83,7 +94,6 @@ export function App() {
             <Route path="/register" element={<GuestOnly><RegisterPage /></GuestOnly>} />
             <Route path="/forgot" element={<GuestOnly><ForgotPage /></GuestOnly>} />
             <Route path="/reset" element={<ResetPage />} />
-            <Route path="/verify" element={<VerifyPage />} />
             <Route path="/how-to-play" element={<HowToPlayPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/" element={<RequireAuth><HomePage /></RequireAuth>} />

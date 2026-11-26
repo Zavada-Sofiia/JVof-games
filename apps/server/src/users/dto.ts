@@ -21,13 +21,12 @@ export function toPublicUser(u: UserRow): PublicUser {
 }
 
 export function toMe(
-  u: UserRow & { email: string; emailVerified: boolean; friendCode: string; createdAt: Date; nicknameChangedAt: Date | null },
+  u: UserRow & { email: string; friendCode: string; createdAt: Date; nicknameChangedAt: Date | null },
 ): MeDto {
   const next = u.nicknameChangedAt ? u.nicknameChangedAt.getTime() + NICKNAME_COOLDOWN_MS : 0;
   return {
     ...toPublicUser(u),
     email: u.email,
-    emailVerified: u.emailVerified,
     friendCode: u.friendCode,
     createdAt: u.createdAt.toISOString(),
     nicknameChangeAvailableAt: next > Date.now() ? new Date(next).toISOString() : null,

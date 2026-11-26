@@ -11,6 +11,7 @@ import {
   type RoomVisibility,
 } from '@jvof/shared';
 import { ChatPanel } from '../components/ChatPanel';
+import { MicIcon, MicOffIcon, SettingsIcon, VideoIcon, VideoOffIcon } from '../components/icons';
 import { FriendsPanel } from '../components/FriendsPanel';
 import { DeviceCheck, DevicePickers, RemoteAudio, VideoEl, useAudioLevel } from '../components/media';
 import { SettingsForm } from '../components/SettingsForm';
@@ -288,7 +289,7 @@ function Room({ code }: { code: string }) {
           onClick={() => media.setMic(!media.micOn)}
           title={meMember.adminMutedMic ? 'Адмін вимкнув вам мікрофон' : media.micOn ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
         >
-          {media.micOn && !meMember.adminMutedMic ? '🎙' : '🔇'}
+          {media.micOn && !meMember.adminMutedMic ? <MicIcon size={20} /> : <MicOffIcon size={20} />}
         </button>
         <button
           className={`btn icon ${media.camOn && !meMember.adminMutedCam ? '' : 'off'}`}
@@ -296,10 +297,10 @@ function Room({ code }: { code: string }) {
           onClick={() => media.setCam(!media.camOn)}
           title={meMember.adminMutedCam ? 'Адмін вимкнув вам камеру' : media.camOn ? 'Вимкнути камеру' : 'Увімкнути камеру'}
         >
-          {media.camOn && !meMember.adminMutedCam ? '📷' : '🚫'}
+          {media.camOn && !meMember.adminMutedCam ? <VideoIcon size={20} /> : <VideoOffIcon size={20} />}
         </button>
         <button className="btn icon" onClick={() => setDevicesOpen(true)} title="Пристрої">
-          ⚙️
+          <SettingsIcon size={20} />
         </button>
         <span className="faint hide-sm" style={{ maxWidth: 260 }}>
           {meMember.adminMutedMic

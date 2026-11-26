@@ -98,7 +98,7 @@ function ProfileCard() {
       <div>
         <div className="faint">Email</div>
         <div className="row">
-          {user.email} {user.emailVerified ? <span className="badge success">підтверджено</span> : <span className="badge warn">не підтверджено</span>}
+          {user.email}
         </div>
       </div>
       <FriendCode user={user} />

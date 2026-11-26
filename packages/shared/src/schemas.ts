@@ -20,7 +20,6 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 export const forgotPasswordSchema = z.object({ email });
 export const resetPasswordSchema = z.object({ token: z.string().min(10).max(200), password });
-export const verifyEmailSchema = z.object({ token: z.string().min(10).max(200) });
 
 export const AVATAR_COLORS = [
   '#7c5cff',
