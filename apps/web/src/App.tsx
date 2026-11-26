@@ -5,6 +5,7 @@ import { useRealtime } from './lib/realtime';
 import { ForgotPage, LoginPage, RegisterPage, ResetPage, VerifyPage } from './pages/AuthPages';
 import { HomePage } from './pages/HomePage';
 import { HowToPlayPage, PrivacyPage } from './pages/InfoPages';
+import { MafiaPage } from './pages/MafiaPage';
 import { useAuth } from './store/auth';
 import { useUi } from './store/ui';
 
@@ -18,13 +19,14 @@ function Header() {
   return (
     <header className="header">
       <Link to="/" className="logo">
-        <img src="/favicon.svg" alt="" /> JVof games
+        <img src="/favicon.svg" alt="" /> <span>JVof games</span>
       </Link>
       {user && (
         <nav className="nav">
           <NavLink to="/" end>
             Головна
           </NavLink>
+          <NavLink to="/mafia">🎭 Мафія</NavLink>
           <NavLink to="/how-to-play">Як грати</NavLink>
         </nav>
       )}
@@ -85,6 +87,7 @@ export function App() {
             <Route path="/how-to-play" element={<HowToPlayPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/" element={<RequireAuth><HomePage /></RequireAuth>} />
+            <Route path="/mafia" element={<RequireAuth><MafiaPage /></RequireAuth>} />
             <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
             <Route path="/room/:code" element={<RequireAuth><RoomPage /></RequireAuth>} />
             <Route path="/games/:id" element={<RequireAuth><GameDetailPage /></RequireAuth>} />
