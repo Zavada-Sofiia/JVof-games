@@ -6,4 +6,5 @@ dist/
 apps/server/src/generated/
 .DS_Store
 coverage/
-Icon
+# macOS: іконка папки (назва закінчується невидимим \r)
+Icon[]
