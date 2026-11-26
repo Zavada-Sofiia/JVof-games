@@ -1,0 +1,30 @@
+{
+  "name": "jvof-games",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "db:up": "docker compose -f infra/docker-compose.yml up -d",
+    "db:down": "docker compose -f infra/docker-compose.yml down",
+    "db:migrate": "npm run migrate -w @jvof/server",
+    "dev": "npm run db:up && concurrently -k -n server,web -c blue,magenta \"npm run dev -w @jvof/server\" \"npm run dev -w @jvof/web\"",
+    "dev:server": "npm run dev -w @jvof/server",
+    "dev:web": "npm run dev -w @jvof/web",
+    "build": "npm run build -w @jvof/web",
+    "start": "npm run start -w @jvof/server",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.11",
+    "concurrently": "^10.0.7",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.2"
+  }
+}

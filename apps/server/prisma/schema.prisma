@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                String    @id @default(uuid()) @db.Uuid
+  email             String    @unique
+  passwordHash      String    @map("password_hash")
+  nickname          String
+  nicknameChangedAt DateTime? @map("nickname_changed_at")
+  avatarColor       String    @default("#7c5cff") @map("avatar_color")
+  avatarImage       String?   @map("avatar_image") // невеликий data:URL (128x128)
+  friendCode        String    @unique @map("friend_code")
+  googleId          String?   @unique @map("google_id")
+  emailVerified     Boolean   @default(false) @map("email_verified")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  refreshTokens    RefreshToken[]
+  emailTokens      EmailToken[]
+  sentRequests     FriendRequest[] @relation("sentRequests")
+  receivedRequests FriendRequest[] @relation("receivedRequests")
+  friendshipsA     Friendship[]    @relation("friendA")
+  friendshipsB     Friendship[]    @relation("friendB")
+  blocksMade       Block[]         @relation("blocker")
+  blocksReceived   Block[]         @relation("blocked")
+  ownedRooms       Room[]
+  roomMemberships  RoomMember[]
+  gamePlayers      GamePlayer[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+enum EmailTokenKind {
+  verify
+  reset
+}
+
+model EmailToken {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @map("user_id") @db.Uuid
+  kind      EmailTokenKind
+  tokenHash String         @unique @map("token_hash")
+  expiresAt DateTime       @map("expires_at")
+  usedAt    DateTime?      @map("used_at")
+  createdAt DateTime       @default(now()) @map("created_at")
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_tokens")
+}
+
+enum FriendRequestStatus {
+  pending
+  accepted
+  declined
+}
+
+model FriendRequest {
+  id        String              @id @default(uuid()) @db.Uuid
+  fromUser  String              @map("from_user") @db.Uuid
+  toUser    String              @map("to_user") @db.Uuid
+  status    FriendRequestStatus @default(pending)
+  createdAt DateTime            @default(now()) @map("created_at")
+  from      User                @relation("sentRequests", fields: [fromUser], references: [id], onDelete: Cascade)
+  to        User                @relation("receivedRequests", fields: [toUser], references: [id], onDelete: Cascade)
+
+  @@unique([fromUser, toUser])
+  @@index([toUser, status])
+  @@map("friend_requests")
+}
+
+/// Зберігається один раз: userA < userB
+model Friendship {
+  userA     String   @map("user_a") @db.Uuid
+  userB     String   @map("user_b") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  a         User     @relation("friendA", fields: [userA], references: [id], onDelete: Cascade)
+  b         User     @relation("friendB", fields: [userB], references: [id], onDelete: Cascade)
+
+  @@id([userA, userB])
+  @@index([userB])
+  @@map("friendships")
+}
+
+model Block {
+  blockerId String   @map("blocker_id") @db.Uuid
+  blockedId String   @map("blocked_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  blocker   User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("blocks")
+}
+
+enum RoomVisibility {
+  public
+  private
+  friends
+}
+
+enum RoomStatus {
+  open
+  playing
+  closed
+}
+
+model Room {
+  id           String         @id @default(uuid()) @db.Uuid
+  code         String         @unique
+  ownerId      String         @map("owner_id") @db.Uuid
+  gameType     String         @map("game_type")
+  visibility   RoomVisibility @default(private)
+  settingsJson Json           @map("settings_json")
+  status       RoomStatus     @default(open)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  owner        User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members      RoomMember[]
+  games        Game[]
+
+  @@map("rooms")
+}
+
+enum RoomRole {
+  admin
+  player
+  spectator
+}
+
+model RoomMember {
+  id       String    @id @default(uuid()) @db.Uuid
+  roomId   String    @map("room_id") @db.Uuid
+  userId   String    @map("user_id") @db.Uuid
+  role     RoomRole
+  joinedAt DateTime  @default(now()) @map("joined_at")
+  leftAt   DateTime? @map("left_at")
+  room     Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([userId])
+  @@map("room_members")
+}
+
+model Game {
+  id         String       @id @default(uuid()) @db.Uuid
+  roomId     String?      @map("room_id") @db.Uuid
+  gameType   String       @map("game_type")
+  configJson Json         @map("config_json")
+  startedAt  DateTime     @map("started_at")
+  endedAt    DateTime?    @map("ended_at")
+  winner     String?
+  room       Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  players    GamePlayer[]
+  events     GameEvent[]
+
+  @@map("games")
+}
+
+model GamePlayer {
+  gameId      String  @map("game_id") @db.Uuid
+  userId      String  @map("user_id") @db.Uuid
+  seat        Int
+  role        String
+  team        String
+  isAlive     Boolean @map("is_alive")
+  diedAtPhase String? @map("died_at_phase")
+  won         Boolean @default(false)
+  game        Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([gameId, userId])
+  @@index([userId])
+  @@map("game_players")
+}
+
+model GameEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  gameId      String   @map("game_id") @db.Uuid
+  seq         Int
+  phase       String
+  type        String
+  actorId     String?  @map("actor_id") @db.Uuid
+  payloadJson Json     @map("payload_json")
+  ts          DateTime
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, seq])
+  @@map("game_events")
+}
