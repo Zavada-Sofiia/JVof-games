@@ -64,6 +64,8 @@ export class Room {
   status: 'lobby' | 'playing' | 'over' = 'lobby';
   timer: NodeJS.Timeout | null = null;
   emptySince: number | null = Date.now();
+  /** Коли кімнату відновили з БД після перезапуску сервера */
+  restoredAt: number | null = null;
 
   constructor(
     public id: string,
@@ -142,6 +144,7 @@ class RoomManager {
     const { maxPlayers, ...raw } = row.settingsJson as Record<string, unknown>;
     const settings = module.normalizeSettings(raw);
     const room = new Room(row.id, code, module, row.ownerId, row.ownerId, row.visibility, Number(maxPlayers) || module.defaultMaxPlayers, settings);
+    room.restoredAt = Date.now();
     this.rooms.set(code, room);
     if (row.status !== 'open') await prisma.room.update({ where: { id: row.id }, data: { status: 'open' } });
     return room;
@@ -246,6 +249,11 @@ class RoomManager {
       dbId: db.id,
     });
     if (!room.members.has(room.adminId)) room.adminId = userId;
+    // Після перезапуску сервера першим міг зайти хтось інший — власник забирає права, коли повертається
+    else if (userId === room.ownerId && room.restoredAt && Date.now() - room.restoredAt < 10 * 60_000 && room.status !== 'playing') {
+      room.adminId = userId;
+      room.restoredAt = null;
+    }
     room.invited.delete(userId);
     this.broadcast(room);
     return { role: check.role };
@@ -399,11 +407,10 @@ class RoomManager {
   broadcast(room: Room) {
     const io = getIO();
     io.to(room.channel).emit('room:state', this.stateDto(room));
-    if (room.game) {
-      for (const m of room.members.values()) {
-        if (!m.socketId) continue;
-        io.to(m.socketId).emit('player:view', room.module.engine.getPlayerView(room.game.state, m.user.id));
-      }
+    for (const m of room.members.values()) {
+      if (!m.socketId) continue;
+      io.to(m.socketId).emit('room:access', this.chatAccess(room, m.user.id));
+      if (room.game) io.to(m.socketId).emit('player:view', room.module.engine.getPlayerView(room.game.state, m.user.id));
     }
   }
 

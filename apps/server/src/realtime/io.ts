@@ -72,6 +72,12 @@ export function createIO(server: HttpServer): IO {
       roomManager.leave(userId);
     });
 
+    socket.on('room:away', () => {
+      if (socket.roomCode) socket.leave(`room:${socket.roomCode}`);
+      socket.roomCode = undefined;
+      roomManager.detach(socket.id, userId);
+    });
+
     socket.on('room:ready', ({ ready }) => handle(undefined, () => roomManager.setReady(code(), userId, !!ready)));
     socket.on('room:media', ({ mic, cam }) => handle(undefined, () => roomManager.setMedia(code(), userId, !!mic, !!cam)));
     socket.on('room:chat', (p, ack) =>

@@ -201,6 +201,8 @@ export interface RtcSignal {
 export interface ClientToServerEvents {
   'room:join': (p: { code: string }, ack: Ack<{ chat: ChatMessageDto[] }>) => void;
   'room:leave': () => void;
+  /** Тимчасово відійшов (інша сторінка) — місце в партії зберігається */
+  'room:away': () => void;
   'room:ready': (p: { ready: boolean }) => void;
   'room:media': (p: { mic: boolean; cam: boolean }) => void;
   'room:chat': (p: { channel: string; text: string }, ack: Ack) => void;
@@ -225,6 +227,8 @@ export interface ServerToClientEvents {
   'room:kicked': (p: { code: string; banned: boolean }) => void;
   'room:closed': (p: { code: string }) => void;
   'player:view': (v: unknown) => void;
+  /** Які чати мені зараз доступні */
+  'room:access': (a: { read: string[]; write: string[] }) => void;
   'room:invite': (p: { from: PublicUser; code: string; gameTitle: string }) => void;
   'friend:request': (r: FriendRequestDto) => void;
   'friend:changed': () => void;

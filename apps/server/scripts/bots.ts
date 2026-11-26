@@ -3,6 +3,7 @@
  *
  *   npm run bots -- ABCD 5          # 5 ботів у кімнату ABCD
  *   npm run bots -- ABCD 5 --start  # і одразу почати гру (якщо бот стане адміном)
+ *   npm run bots -- ABCD 4 --from=2 # боти з 2-го (якщо під bot1 ви зайшли самі)
  *
  * Для кімнати «лише для друзів» ботів не пустить — використовуйте приватну кімнату.
  */
@@ -20,6 +21,7 @@ if (!codeArg) {
 }
 const code = codeArg.toUpperCase();
 const count = Number(countArg ?? 4);
+const from = Math.max(1, Number(process.argv.find((a) => a.startsWith('--from='))?.slice(7) ?? 1)) - 1;
 const NAMES = ['Бот Іван', 'Бот Марічка', 'Бот Тарас', 'Бот Оксана', 'Бот Петро', 'Бот Леся', 'Бот Остап', 'Бот Зоряна', 'Бот Богдан', 'Бот Христя', 'Бот Назар', 'Бот Ярина'];
 
 async function api(path: string, body?: unknown, token?: string): Promise<any> {
@@ -127,7 +129,7 @@ function runBot(name: string, token: string, id: string) {
 }
 
 const bots: { token: string; id: string }[] = [];
-for (let i = 0; i < count; i++) bots.push(await login(i));
-bots.forEach((b, i) => runBot(NAMES[i % NAMES.length], b.token, b.id));
+for (let i = from; i < from + count; i++) bots.push(await login(i));
+bots.forEach((b, i) => runBot(NAMES[(i + from) % NAMES.length], b.token, b.id));
 console.log(`Боти запущені (${count}). Ctrl+C — вийти.`);
 process.on('SIGINT', () => process.exit(0));
