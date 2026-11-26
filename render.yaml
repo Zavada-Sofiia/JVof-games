@@ -1,0 +1,21 @@
+# Шаблон для Render Blueprint: один вебсервіс віддає API, WebSocket і зібраний сайт.
+# База — зовнішня (Neon або Supabase), рядок підключення задається в DATABASE_URL.
+services:
+  - type: web
+    name: jvof-games
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build && npm run migrate:deploy -w @jvof/server
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: WEB_ORIGIN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
