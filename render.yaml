@@ -1,5 +1,6 @@
 # Шаблон для Render Blueprint: один вебсервіс віддає API, WebSocket і зібраний сайт.
 # База — зовнішня (Neon або Supabase), рядок підключення задається в DATABASE_URL.
+# Адресу сайту сервер бере з RENDER_EXTERNAL_URL (WEB_ORIGIN потрібен лише для власного домену).
 services:
   - type: web
     name: jvof-games
@@ -14,8 +15,6 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: DATABASE_URL
-        sync: false
-      - key: WEB_ORIGIN
         sync: false
       - key: JWT_SECRET
         generateValue: true

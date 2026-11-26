@@ -13,7 +13,8 @@ export const env = {
   port: Number(process.env.PORT ?? 3001),
   host: process.env.HOST ?? (isProd ? '0.0.0.0' : '127.0.0.1'),
   databaseUrl: required('DATABASE_URL'),
-  webOrigin: (process.env.WEB_ORIGIN ?? 'http://localhost:5173').replace(/\/$/, ''),
+  // На Render адресу сервісу видно в RENDER_EXTERNAL_URL, тож WEB_ORIGIN там можна не задавати
+  webOrigin: (process.env.WEB_ORIGIN || process.env.RENDER_EXTERNAL_URL || 'http://localhost:5173').replace(/\/$/, ''),
   jwtSecret: required('JWT_SECRET', isProd ? undefined : 'dev-only-secret-change-me-please-0123456789'),
   /** true, якщо фронтенд і API на різних доменах (тоді cookie SameSite=None; Secure) */
   crossSiteCookies: process.env.COOKIE_CROSS_SITE === 'true',

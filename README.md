@@ -85,8 +85,8 @@ npm run typecheck    # перевірка типів усіх пакетів
 
 У `render.yaml` є шаблон для Render (Blueprint). Потрібно задати змінні:
 
-- `DATABASE_URL` — рядок підключення до Postgres;
-- `WEB_ORIGIN` — адреса сайту, наприклад `https://jvof-games.onrender.com`;
+- `DATABASE_URL` — рядок підключення до Postgres (для Neon — **прямий**, без pooler: так працюють міграції Prisma);
+- `WEB_ORIGIN` — лише якщо підключаєте власний домен (інакше сервер бере адресу з `RENDER_EXTERNAL_URL`);
 - `JWT_SECRET` — Render згенерує сам;
 - за бажанням `RESEND_API_KEY` і `MAIL_FROM` для листів, `TURN_URLS`/`TURN_USERNAME`/`TURN_CREDENTIAL` для складних мереж.
 
