@@ -6,3 +6,4 @@ dist/
 apps/server/src/generated/
 .DS_Store
 coverage/
+Icon
