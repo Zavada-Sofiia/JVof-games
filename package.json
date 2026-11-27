@@ -16,7 +16,7 @@
     "build": "npm run build -w @jvof/web",
     "start": "npm run start -w @jvof/server",
     "test": "vitest run",
-    "typecheck": "tsc -p packages/shared && tsc -p packages/game-core && tsc -p packages/game-mafia && tsc -p apps/server && tsc -p apps/web",
+    "typecheck": "tsc -p packages/shared && tsc -p packages/game-core && tsc -p packages/game-mafia && tsc -p packages/game-spyfall && tsc -p apps/server && tsc -p apps/web",
     "bots": "npm run bots -w @jvof/server --"
   },
   "engines": {
