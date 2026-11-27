@@ -36,7 +36,27 @@ describe('Шпигун', () => {
     const pub = E.getPublicState(s, 0);
     expect(pub.location).toBeNull();
     expect(pub.players.every((p) => p.isSpy === null)).toBe(true);
-    expect(pub.locations).toHaveLength(LOCATIONS.length);
+    expect(pub.locations).toHaveLength(30); // добірка за замовчуванням
+    expect(pub.locations.map((l) => l.id)).toContain(s.locationId);
+    // ролі в локації за замовчуванням вимкнені
+    expect(E.getPlayerView(s, civ)!.role).toBeNull();
+  });
+
+  it('добірка локацій налаштовується, справжня локація завжди в ній', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const s = E.start(ids.map((id, i) => ({ id, nickname: id, seat: i + 1 })), { locationCount: 10 }, { now: 0, random: seededRandom(seed), hostId: null });
+      expect(s.locationIds).toHaveLength(10);
+      expect(s.locationIds).toContain(s.locationId);
+    }
+    const all = E.start(ids.map((id, i) => ({ id, nickname: id, seat: i + 1 })), { locationCount: 100 }, { now: 0, random: seededRandom(1), hostId: null });
+    expect(all.locationIds).toHaveLength(LOCATIONS.length);
+  });
+
+  it('ролі в локації роздаються лише з галочкою', () => {
+    const s = E.start(ids.map((id, i) => ({ id, nickname: id, seat: i + 1 })), { roles: true }, { now: 0, random: seededRandom(5), hostId: null });
+    const locals = s.players.filter((p) => !p.isSpy);
+    expect(locals.every((p) => typeof p.role === 'string' && p.role.length > 0)).toBe(true);
+    expect(s.players.find((p) => p.isSpy)!.role).toBeNull();
   });
 
   it('не можна почати вдвох', () => {
@@ -87,7 +107,9 @@ describe('Шпигун', () => {
     let s = toQuestions(setup());
     const right = act(s, 'a', { type: 'guess', locationId: s.locationId });
     expect(right.winner).toBe('spy');
-    const wrongId = LOCATIONS.find((l) => l.id !== s.locationId)!.id;
+    const wrongId = s.locationIds.find((l) => l !== s.locationId)!;
+    const outside = LOCATIONS.find((l) => !s.locationIds.includes(l.id))!.id;
+    expect(() => act(s, 'a', { type: 'guess', locationId: outside })).toThrow(/немає/);
     const wrong = act(s, 'a', { type: 'guess', locationId: wrongId });
     expect(wrong.winner).toBe('locals');
     expect(() => act(s, 'b', { type: 'guess', locationId: s.locationId })).toThrow(/лише шпигун/);

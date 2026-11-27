@@ -29,7 +29,7 @@ export const ROLE_TITLES: Record<string, string> = {
 /** Ігри платформи. Ті, що «скоро», — з плану розвитку (розділ 13.3 архітектури). */
 export const GAMES: { id: string; path?: string; icon: string; title: string; text: string; pills?: string[]; soon?: boolean }[] = [
   { id: 'mafia', path: '/mafia', icon: '🎭', title: 'Мафія', text: 'Мирні шукають мафію, мафія вночі обирає жертву. Гра сама вмикає й вимикає мікрофони.', pills: ['4–16 гравців', 'відео й голос', 'авто-ведучий'] },
-  { id: 'spyfall', path: '/spyfall', icon: '🕵️', title: 'Шпигун', text: 'Усі знають локацію, крім шпигуна. Питайте одне одного й вичисліть, хто не в темі.', pills: ['3–12 гравців', '28 локацій', '8 хвилин'] },
+  { id: 'spyfall', path: '/spyfall', icon: '🕵️', title: 'Шпигун', text: 'Усі знають локацію, крім шпигуна. Питайте одне одного й вичисліть, хто не в темі.', pills: ['3–12 гравців', '100 локацій', '8 хвилин'] },
   { id: 'alias', icon: '🐊', title: 'Крокодил', text: 'Поясни слово, не називаючи його. На час і на очки.', soon: true },
   { id: 'codenames', icon: '🧩', title: 'Кодові імена', text: 'Дві команди, поле зі словами й капітани.', soon: true },
 ];
@@ -75,7 +75,7 @@ export function CreateRoom({ gameId }: { gameId: string }) {
           ))}
         </select>
       </label>
-      <SettingsForm schema={module.settingsSchema} value={settings} onChange={(p) => setSettings(module.normalizeSettings({ ...settings, ...p }))} only={more ? undefined : ['hostMode', 'roundMinutes']} />
+      <SettingsForm schema={module.settingsSchema} value={settings} onChange={(p) => setSettings(module.normalizeSettings({ ...settings, ...p }))} only={more ? undefined : ['hostMode', 'roundMinutes', 'roles']} />
       <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => setMore(!more)}>
         {more ? '▴ Менше налаштувань' : '▾ Усі налаштування правил'}
       </button>

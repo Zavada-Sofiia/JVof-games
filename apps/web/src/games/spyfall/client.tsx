@@ -64,7 +64,7 @@ function MyCard({ v }: { v: SpyPlayerView }) {
       <div className="grow">
         <div className="faint">Локація</div>
         <div style={{ fontWeight: 800, fontSize: '1.15rem' }}>{v.location!.title}</div>
-        <div className="faint">Ваша роль: {v.role}. Шукайте того, хто не в темі.</div>
+        <div className="faint">{v.role ? `Ваша роль: ${v.role}. ` : ''}Шукайте того, хто не в темі.</div>
       </div>
     </div>
   );
@@ -261,7 +261,7 @@ function Summary(p: GameProps) {
             <tr key={x.id}>
               <td>{x.seat}</td>
               <td>{x.nickname}</td>
-              <td>{x.isSpy ? '🕵️ Шпигун' : x.role}</td>
+              <td>{x.isSpy ? '🕵️ Шпигун' : (x.role ?? 'Мешканець')}</td>
             </tr>
           ))}
         </tbody>
@@ -287,7 +287,7 @@ export const spyfallClient: ClientGame = {
     return {
       seat: pl.seat,
       turn: g.phase === 'QUESTIONS' && g.askerId === userId,
-      role: g.phase === 'GAME_OVER' ? (pl.isSpy ? '🕵️ Шпигун' : (pl.role ?? undefined)) : undefined,
+      role: g.phase === 'GAME_OVER' ? (pl.isSpy ? '🕵️ Шпигун' : (pl.role ?? 'Мешканець')) : undefined,
       badge: g.accusation?.accusedId === userId ? '☝️ під підозрою' : undefined,
     };
   },

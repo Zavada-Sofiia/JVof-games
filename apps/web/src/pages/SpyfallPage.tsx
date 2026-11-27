@@ -16,6 +16,7 @@ export function SpyfallPage() {
         <div className="row wrap" style={{ marginTop: '0.9rem', gap: '0.4rem' }}>
           <span className="stat-pill">❓ Питання по колу</span>
           <span className="stat-pill">☝️ Одне звинувачення на гравця</span>
+          <span className="stat-pill">🗺 100 локацій</span>
           <span className="stat-pill">📍 Шпигун може вгадати локацію</span>
           <Link to="/how-to-play#spyfall" className="stat-pill" style={{ textDecoration: 'none' }}>
             📖 Правила →
