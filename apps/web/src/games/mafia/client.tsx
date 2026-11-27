@@ -14,7 +14,7 @@ import { useCountdown } from '../../lib/useCountdown';
 import { toastError } from '../../store/ui';
 import type { ClientGame, GameProps } from '../types';
 
-export const ROLE_EMOJI: Record<Role, string> = { civilian: '🙂', sheriff: '⭐', doctor: '💉', mafia: '🔫', don: '🎩' };
+export const ROLE_EMOJI: Record<Role, string> = { civilian: '🙂', sheriff: '⭐', doctor: '💉', prostitute: '💋', mafia: '🔫', don: '🎩' };
 
 const pub = (p: GameProps) => p.publicState as MafiaPublicState;
 const viewOf = (p: GameProps) => p.view as MafiaPlayerView | null;
@@ -87,7 +87,7 @@ function NightActions(p: GameProps) {
   const alive = g.players.filter((x) => x.alive);
   const seat = (id: string) => g.players.find((x) => x.id === id)?.seat ?? 0;
   const mates = new Set([p.meId, ...v.teammates.map((t) => t.id)]);
-  const send = async (kind: 'kill' | 'check' | 'heal', target: string) => {
+  const send = async (kind: 'kill' | 'check' | 'heal' | 'visit', target: string) => {
     setBusy(true);
     try {
       await p.act({ type: 'night', kind, target });
@@ -97,7 +97,6 @@ function NightActions(p: GameProps) {
       setBusy(false);
     }
   };
-  const lastCheck = v.checks.filter((c) => c.round === g.round).at(-1);
 
   return (
     <div className="col">
@@ -117,12 +116,7 @@ function NightActions(p: GameProps) {
         <div className="card tight col">
           <h3>{n.check === 'sheriff' ? '⭐ Кого перевірити?' : '🎩 Шукаємо шерифа: кого перевірити?'}</h3>
           {n.myCheck ? (
-            lastCheck && (
-              <div className={`banner ${lastCheck.result === (n.check === 'sheriff') ? 'mafia' : 'civilians'}`}>
-                {p.nick(lastCheck.targetId)}{' '}
-                {n.check === 'sheriff' ? (lastCheck.result ? '— мафія!' : '— не мафія') : lastCheck.result ? '— шериф!' : '— не шериф'}
-              </div>
-            )
+            <div className="banner">Перевіряєте {p.nick(n.myCheck)}. Результат дізнаєтесь уранці.</div>
           ) : (
             <Targets ids={alive.filter((x) => x.id !== p.meId).map((x) => x.id)} selected={null} onPick={(id) => send('check', id)} nick={p.nick} seat={seat} disabled={busy} />
           )}
@@ -142,7 +136,22 @@ function NightActions(p: GameProps) {
           />
         </div>
       )}
-      {!n.canKill && !n.check && !n.canHeal && (
+      {n.canVisit && (
+        <div className="card tight col">
+          <h3>💋 До кого піти цієї ночі?</h3>
+          <div className="faint">Його нічна дія не спрацює, а завтра в нього буде алібі на голосуванні.</div>
+          <Targets
+            ids={alive.filter((x) => x.id !== p.meId && x.id !== n.cannotVisitId).map((x) => x.id)}
+            selected={n.myVisit}
+            onPick={(id) => send('visit', id)}
+            nick={p.nick}
+            seat={seat}
+            disabled={busy}
+          />
+          {n.cannotVisitId && <div className="faint">До {p.nick(n.cannotVisitId)} двічі поспіль не можна.</div>}
+        </div>
+      )}
+      {!n.canKill && !n.check && !n.canHeal && !n.canVisit && (
         <div className="banner">{g.round === 1 && !g.settings.firstNightKill ? '🌙 Знайомча ніч. Мафія знайомиться, місто спить.' : '🌙 Місто спить. Чекайте ранку.'}</div>
       )}
     </div>
@@ -203,7 +212,7 @@ function Chronicle({ entries, nick }: { entries: ChronicleEntry[]; nick: GamePro
 export function chronicleText(e: ChronicleEntry, nick: (id: string | null | undefined) => string): string {
   switch (e.kind) {
     case 'night':
-      return `🌙 Ніч ${e.round}: ${e.killedId ? `загинув(ла) ${nick(e.killedId)}` : 'ніхто не загинув'}`;
+      return `🌙 Ніч ${e.round}: ${e.killedId ? `загинув(ла) ${nick(e.killedId)}` : 'ніхто не загинув'}${e.alibiId ? ` · алібі в ${nick(e.alibiId)}` : ''}`;
     case 'vote': {
       const votes = Object.entries(e.votes)
         .map(([who, t]) => `${nick(who)} → ${t === 'skip' ? 'утримався' : nick(t)}`)
@@ -282,6 +291,7 @@ function HostPanel(p: GameProps) {
           {has('sheriff') && <div>Шериф перевіряє: {night.sheriffCheck ? p.nick(night.sheriffCheck) : '—'}</div>}
           {has('don') && <div>Дон перевіряє: {night.donCheck ? p.nick(night.donCheck) : '—'}</div>}
           {has('doctor') && <div>Лікар рятує: {night.doctorHeal ? p.nick(night.doctorHeal) : '—'}</div>}
+          {has('prostitute') && <div>Повія йде до: {night.visit ? p.nick(night.visit) : '—'}</div>}
         </div>
       )}
     </div>
@@ -315,6 +325,9 @@ function Panel(p: GameProps) {
       {g.phase === 'DAY_ANNOUNCE' && g.lastNight && (
         <div className="banner">{g.lastNight.killedId ? `☠️ Цієї ночі загинув(ла) ${p.nick(g.lastNight.killedId)}` : '🌅 Цієї ночі ніхто не загинув'}</div>
       )}
+      {g.alibiId && (g.phase === 'DAY_ANNOUNCE' || g.phase === 'DAY_DISCUSSION' || g.phase === 'VOTING') && (
+        <div className="banner">💋 У {p.nick(g.alibiId)} сьогодні алібі: за нього не голосують</div>
+      )}
       {g.phase === 'DAY_DISCUSSION' && (
         <div className="card tight col">
           <h3>Черга промов</h3>
@@ -345,7 +358,8 @@ function Panel(p: GameProps) {
           <h3>Мої перевірки</h3>
           {v.checks.map((c, i) => (
             <div key={i} className="faint">
-              Ніч {c.round}: {p.nick(c.targetId)} — {c.by === 'sheriff' ? (c.result ? 'мафія' : 'не мафія') : c.result ? 'шериф' : 'не шериф'}
+              Ніч {c.round}: {p.nick(c.targetId)} —{' '}
+              {c.result === null ? 'перевірку зірвала Повія 💋' : c.by === 'sheriff' ? (c.result ? 'мафія' : 'не мафія') : c.result ? 'шериф' : 'не шериф'}
             </div>
           ))}
         </div>

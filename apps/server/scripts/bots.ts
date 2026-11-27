@@ -88,6 +88,7 @@ function runBot(name: string, token: string, id: string) {
       if (v.night.canKill) act({ type: 'night', kind: 'kill', target: pick(others.filter((o) => !mates.has(o))) });
       if (v.night.check) act({ type: 'night', kind: 'check', target: pick(others) });
       if (v.night.canHeal) act({ type: 'night', kind: 'heal', target: pick(v.night.cannotHealSelf ? others : [...others, id]) });
+      if (v.night.canVisit) act({ type: 'night', kind: 'visit', target: pick(others.filter((o) => o !== v.night!.cannotVisitId)) });
     } else if (mine) {
       acted = key;
       await delay(2500);

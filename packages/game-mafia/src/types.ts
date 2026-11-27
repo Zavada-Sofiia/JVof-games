@@ -1,6 +1,6 @@
 import type { GameEventRecord, PhaseTimer } from '@jvof/game-core';
 
-export type Role = 'civilian' | 'sheriff' | 'doctor' | 'mafia' | 'don';
+export type Role = 'civilian' | 'sheriff' | 'doctor' | 'prostitute' | 'mafia' | 'don';
 export type Team = 'civilians' | 'mafia';
 
 export const ROLE_INFO: Record<Role, { title: string; team: Team; description: string }> = {
@@ -10,6 +10,11 @@ export const ROLE_INFO: Record<Role, { title: string; team: Team; description: s
     title: 'Лікар',
     team: 'civilians',
     description: 'Щоночі рятуєте одного гравця. Себе лікувати можна, але не дві ночі поспіль.',
+  },
+  prostitute: {
+    title: 'Повія',
+    team: 'civilians',
+    description: 'Щоночі йдете до когось у гості: його нічна дія не спрацює, а наступного дня в нього алібі — за нього не голосують.',
   },
   mafia: { title: 'Мафія', team: 'mafia', description: 'Щоночі разом із командою обираєте жертву.' },
   don: {
@@ -21,7 +26,7 @@ export const ROLE_INFO: Record<Role, { title: string; team: Team; description: s
 
 export const TEAM_TITLE: Record<Team, string> = { civilians: 'Мирні', mafia: 'Мафія' };
 
-export const ROLE_ORDER: Role[] = ['civilian', 'sheriff', 'doctor', 'mafia', 'don'];
+export const ROLE_ORDER: Role[] = ['civilian', 'sheriff', 'doctor', 'prostitute', 'mafia', 'don'];
 
 export type Phase = 'ROLE_ASSIGN' | 'NIGHT' | 'DAY_ANNOUNCE' | 'DAY_DISCUSSION' | 'VOTING' | 'EXECUTION' | 'GAME_OVER';
 
@@ -49,6 +54,7 @@ export interface MafiaSettings {
   don: boolean;
   sheriff: boolean;
   doctor: boolean;
+  prostitute: boolean;
   deadVideo: boolean;
   allowSpectators: boolean;
 }
@@ -69,10 +75,12 @@ export interface NightState {
   sheriffCheck: string | null;
   donCheck: string | null;
   doctorHeal: string | null;
+  /** До кого пішла Повія (його нічна дія блокується, вдень у нього алібі) */
+  visit: string | null;
 }
 
 export type ChronicleEntry =
-  | { kind: 'night'; round: number; killedId: string | null }
+  | { kind: 'night'; round: number; killedId: string | null; alibiId?: string | null }
   | { kind: 'vote'; round: number; voteRound: 1 | 2; votes: Record<string, string>; leaders: string[] }
   | { kind: 'execution'; round: number; targetId: string | null; outcome: 'executed' | 'tie' | 'nobody' }
   | { kind: 'left'; round: number; playerId: string };
@@ -82,8 +90,8 @@ export interface CheckRecord {
   actorId: string;
   round: number;
   targetId: string;
-  /** sheriff: чи мафія; don: чи шериф */
-  result: boolean;
+  /** sheriff: чи мафія; don: чи шериф; null — перевірку заблокувала Повія */
+  result: boolean | null;
 }
 
 export interface MafiaState {
@@ -97,6 +105,10 @@ export interface MafiaState {
   timer: PhaseTimer;
   night: NightState;
   lastSelfHealRound: number | null;
+  /** До кого Повія ходила минулої ночі (двічі поспіль не можна) */
+  lastVisitTarget: string | null;
+  /** Алібі на денне голосування */
+  alibi: { round: number; playerId: string } | null;
   lastNight: { round: number; killedId: string | null } | null;
   discussion: { order: string[]; index: number; timeUp: boolean };
   voting: { round: 1 | 2; candidates: string[]; votes: Record<string, string> };
@@ -113,7 +125,7 @@ export interface MafiaState {
 // ---------- Дії гравців ----------
 
 export type MafiaAction =
-  | { type: 'night'; kind: 'kill' | 'check' | 'heal'; target: string }
+  | { type: 'night'; kind: 'kill' | 'check' | 'heal' | 'visit'; target: string }
   | { type: 'vote'; target: string }
   | { type: 'end_speech' };
 
@@ -145,6 +157,8 @@ export interface MafiaPublicState {
   orderIndex: number;
   voting: { round: 1 | 2; candidates: string[]; votedIds: string[] } | null;
   lastNight: { round: number; killedId: string | null } | null;
+  /** У кого сьогодні алібі (за нього не голосують) */
+  alibiId: string | null;
   execution: { targetId: string | null; outcome: 'executed' | 'tie' | 'nobody'; speech: boolean } | null;
   winner: Team | null;
   aborted: boolean;
@@ -167,6 +181,10 @@ export interface MafiaPlayerView {
     myKill: string | null;
     myCheck: string | null;
     myHeal: string | null;
+    canVisit: boolean;
+    myVisit: string | null;
+    /** До кого не можна йти цієї ночі (був минулої) */
+    cannotVisitId: string | null;
     /** Голоси команди мафії (бачать лише мафія та ведучий) */
     teamVotes: Record<string, string>;
   } | null;

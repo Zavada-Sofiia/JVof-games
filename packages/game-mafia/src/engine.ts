@@ -42,7 +42,7 @@ const EXECUTION_NO_SPEECH_MS = 6_000;
 const sec = (s: number) => s * 1000;
 export const teamOf = (r: Role): Team => ROLE_INFO[r].team;
 const isMafia = (p: MafiaPlayer) => teamOf(p.role) === 'mafia';
-const emptyNight = (): NightState => ({ mafiaVotes: {}, sheriffCheck: null, donCheck: null, doctorHeal: null });
+const emptyNight = (): NightState => ({ mafiaVotes: {}, sheriffCheck: null, donCheck: null, doctorHeal: null, visit: null });
 
 // ---------- допоміжне ----------
 
@@ -121,26 +121,55 @@ function kill(s: MafiaState, id: string) {
   }
 }
 
+/** У кого алібі на поточний день (Повія була в нього минулої ночі) */
+function alibiToday(s: MafiaState): string | null {
+  return s.alibi && s.alibi.round === s.round && player(s, s.alibi.playerId)?.alive ? s.alibi.playerId : null;
+}
+
 function resolveNight(s: MafiaState, ctx: EngineContext): string | null {
+  // Повія: до кого пішла, той цієї ночі не діє
+  const prostitute = aliveWithRole(s, 'prostitute');
+  const visit = prostitute ? s.night.visit : null;
+  const blocked = (id: string | undefined) => !!id && id === visit;
+
   let target: string | null = null;
   if (killAllowed(s)) {
+    const votes = Object.fromEntries(Object.entries(s.night.mafiaVotes).filter(([voter]) => !blocked(voter)));
     const don = aliveWithRole(s, 'don');
-    if (don && s.night.mafiaVotes[don.id]) target = s.night.mafiaVotes[don.id];
+    if (don && votes[don.id]) target = votes[don.id];
     else {
       const living = alive(s).map((p) => p.id);
-      const { leaders } = tallyVotes(s.night.mafiaVotes, living);
+      const { leaders } = tallyVotes(votes, living);
       if (leaders.length > 0) target = leaders[Math.floor(ctx.random() * leaders.length)];
     }
   }
   const doctor = aliveWithRole(s, 'doctor');
-  const heal = doctor ? s.night.doctorHeal : null;
+  const heal = doctor && !blocked(doctor.id) ? s.night.doctorHeal : null;
   if (doctor && heal === doctor.id) s.lastSelfHealRound = s.round;
+
+  // Перевірки шерифа й дона розкриваються вранці (бо їх могла заблокувати Повія)
+  const sheriff = aliveWithRole(s, 'sheriff');
+  if (sheriff && s.night.sheriffCheck) {
+    const t = player(s, s.night.sheriffCheck)!;
+    s.checks.push({ by: 'sheriff', actorId: sheriff.id, round: s.round, targetId: t.id, result: blocked(sheriff.id) ? null : isMafia(t) });
+  }
+  const don = aliveWithRole(s, 'don');
+  if (don && s.night.donCheck) {
+    const t = player(s, s.night.donCheck)!;
+    s.checks.push({ by: 'don', actorId: don.id, round: s.round, targetId: t.id, result: blocked(don.id) ? null : t.role === 'sheriff' });
+  }
+
   const saved = target !== null && target === heal;
   const killed = target !== null && !saved ? target : null;
   if (killed) kill(s, killed);
-  log(s, ctx, 'night_result', null, { targetId: target, healId: heal, killedId: killed, saved });
+
+  s.lastVisitTarget = visit;
+  s.alibi = visit ? { round: s.round, playerId: visit } : null;
+  const alibiId = visit && player(s, visit)?.alive ? visit : null;
+
+  log(s, ctx, 'night_result', null, { targetId: target, healId: heal, killedId: killed, saved, visitId: visit });
   s.lastNight = { round: s.round, killedId: killed };
-  s.chronicle.push({ kind: 'night', round: s.round, killedId: killed });
+  s.chronicle.push({ kind: 'night', round: s.round, killedId: killed, alibiId });
   return killed;
 }
 
@@ -208,11 +237,14 @@ function nextSpeaker(s: MafiaState, ctx: EngineContext) {
   let i = d.index + 1;
   while (i < d.order.length && !player(s, d.order[i])?.alive) i++;
   if (i >= d.order.length) {
+    const alibi = alibiToday(s);
     enterVoting(
       s,
       ctx,
       1,
-      alive(s).map((p) => p.id),
+      alive(s)
+        .map((p) => p.id)
+        .filter((id) => id !== alibi),
     );
     return;
   }
@@ -229,7 +261,8 @@ function nightComplete(s: MafiaState): boolean {
   const sheriffDone = !aliveWithRole(s, 'sheriff') || s.night.sheriffCheck !== null;
   const donDone = !don || s.night.donCheck !== null;
   const doctorDone = !aliveWithRole(s, 'doctor') || s.night.doctorHeal !== null;
-  return killDone && sheriffDone && donDone && doctorDone;
+  const visitDone = !aliveWithRole(s, 'prostitute') || s.night.visit !== null;
+  return killDone && sheriffDone && donDone && doctorDone && visitDone;
 }
 
 const votingComplete = (s: MafiaState) => alive(s).every((p) => s.voting.votes[p.id] !== undefined);
@@ -351,12 +384,10 @@ function handleNight(s: MafiaState, me: MafiaPlayer, a: Extract<MafiaAction, { t
       if (s.night.sheriffCheck) throw new GameError('Цієї ночі ви вже перевіряли');
       if (target.id === me.id) throw new GameError('Перевіряти себе немає сенсу');
       s.night.sheriffCheck = target.id;
-      s.checks.push({ by: 'sheriff', actorId: me.id, round: s.round, targetId: target.id, result: isMafia(target) });
     } else if (me.role === 'don') {
       if (s.night.donCheck) throw new GameError('Цієї ночі ви вже перевіряли');
       if (target.id === me.id) throw new GameError('Перевіряти себе немає сенсу');
       s.night.donCheck = target.id;
-      s.checks.push({ by: 'don', actorId: me.id, round: s.round, targetId: target.id, result: target.role === 'sheriff' });
     } else throw new GameError('Перевіряти можуть лише шериф і дон');
   } else if (a.kind === 'heal') {
     if (me.role !== 'doctor') throw new GameError('Лікувати може лише лікар');
@@ -366,6 +397,11 @@ function handleNight(s: MafiaState, me: MafiaPlayer, a: Extract<MafiaAction, { t
       if (s.lastSelfHealRound === s.round - 1) throw new GameError('Не можна лікувати себе дві ночі поспіль');
     }
     s.night.doctorHeal = target.id;
+  } else if (a.kind === 'visit') {
+    if (me.role !== 'prostitute') throw new GameError('Ходити в гості може лише Повія');
+    if (target.id === me.id) throw new GameError('До себе в гості не ходять');
+    if (target.id === s.lastVisitTarget) throw new GameError('Не можна йти до того самого гравця дві ночі поспіль');
+    s.night.visit = target.id;
   } else throw new GameError('Невідома нічна дія');
 
   log(s, ctx, 'night_action', me.id, { kind: a.kind, target: target.id });
@@ -394,6 +430,8 @@ export const mafiaEngine: GameEngine<MafiaState, MafiaPublicState, MafiaPlayerVi
       timer: noTimer(),
       night: emptyNight(),
       lastSelfHealRound: null,
+      lastVisitTarget: null,
+      alibi: null,
       lastNight: null,
       discussion: { order: [], index: 0, timeUp: false },
       voting: { round: 1, candidates: [], votes: {} },
@@ -454,6 +492,7 @@ export const mafiaEngine: GameEngine<MafiaState, MafiaPublicState, MafiaPlayerVi
           ? { round: s.voting.round, candidates: s.voting.candidates, votedIds: Object.keys(s.voting.votes) }
           : null,
       lastNight: s.lastNight,
+      alibiId: s.phase !== 'NIGHT' && s.phase !== 'GAME_OVER' ? alibiToday(s) : null,
       execution: s.phase === 'EXECUTION' || over ? s.execution : null,
       winner: s.winner,
       aborted: s.aborted,
@@ -490,6 +529,9 @@ export const mafiaEngine: GameEngine<MafiaState, MafiaPublicState, MafiaPlayerVi
             myKill: s.night.mafiaVotes[me.id] ?? null,
             myCheck: me.role === 'sheriff' ? s.night.sheriffCheck : me.role === 'don' ? s.night.donCheck : null,
             myHeal: me.role === 'doctor' ? s.night.doctorHeal : null,
+            canVisit: me.role === 'prostitute',
+            myVisit: me.role === 'prostitute' ? s.night.visit : null,
+            cannotVisitId: me.role === 'prostitute' ? s.lastVisitTarget : null,
             teamVotes: mafia ? s.night.mafiaVotes : {},
           }
         : null;

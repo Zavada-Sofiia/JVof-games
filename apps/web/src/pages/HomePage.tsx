@@ -15,7 +15,7 @@ const VISIBILITY: { value: RoomVisibility; label: string; hint: string }[] = [
   { value: 'public', label: 'Публічна', hint: 'видно в списку відкритих кімнат' },
 ];
 
-const ROLE_TITLES: Record<string, string> = { civilian: 'Мирний', sheriff: 'Шериф', doctor: 'Лікар', mafia: 'Мафія', don: 'Дон' };
+const ROLE_TITLES: Record<string, string> = { civilian: 'Мирний', sheriff: 'Шериф', doctor: 'Лікар', prostitute: 'Повія', mafia: 'Мафія', don: 'Дон' };
 
 /** Ігри платформи. Ті, що «скоро», — з плану розвитку (розділ 13.3 архітектури). */
 export const GAMES = [

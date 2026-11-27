@@ -48,6 +48,13 @@ export const mafiaSettingsSchema: SettingsField[] = [
   { key: 'don', label: 'Дон', type: 'boolean', default: true, hint: 'Лише для ручного складу' },
   { key: 'sheriff', label: 'Шериф', type: 'boolean', default: true, hint: 'Лише для ручного складу' },
   { key: 'doctor', label: 'Лікар', type: 'boolean', default: true, hint: 'Лише для ручного складу' },
+  {
+    key: 'prostitute',
+    label: 'Повія',
+    type: 'boolean',
+    default: false,
+    hint: 'Додаткова роль мирних (від 6 гравців): вночі блокує дію гравця, вдень у нього алібі на голосуванні',
+  },
   { key: 'deadVideo', label: 'Камери вибулих видно', type: 'boolean', default: true },
   { key: 'allowSpectators', label: 'Друзі можуть дивитися як глядачі', type: 'boolean', default: true },
 ];
@@ -66,6 +73,7 @@ export function defaultRoleCounts(n: number): Record<Role, number> {
     mafia: mafiaTotal - don,
     sheriff,
     doctor,
+    prostitute: 0,
     civilian: n - mafiaTotal - sheriff - doctor,
   };
 }
@@ -74,7 +82,14 @@ export function defaultRoleCounts(n: number): Record<Role, number> {
 export function computeRoleCounts(n: number, s: MafiaSettings): Record<Role, number> {
   if (n < MIN_PLAYERS) throw new GameError(`Для Мафії потрібно щонайменше ${MIN_PLAYERS} гравці`);
   if (n > MAX_PLAYERS) throw new GameError(`Для Мафії можна не більше ${MAX_PLAYERS} гравців`);
-  if (s.rolesMode === 'auto') return defaultRoleCounts(n);
+  if (s.rolesMode === 'auto') {
+    const counts = defaultRoleCounts(n);
+    if (s.prostitute && n >= 6 && counts.civilian > 0) {
+      counts.prostitute = 1;
+      counts.civilian--;
+    }
+    return counts;
+  }
   const mafiaTotal = s.mafiaCount;
   const don = s.don ? 1 : 0;
   const counts: Record<Role, number> = {
@@ -82,9 +97,10 @@ export function computeRoleCounts(n: number, s: MafiaSettings): Record<Role, num
     mafia: mafiaTotal - don,
     sheriff: s.sheriff ? 1 : 0,
     doctor: s.doctor ? 1 : 0,
+    prostitute: s.prostitute ? 1 : 0,
     civilian: 0,
   };
-  counts.civilian = n - mafiaTotal - counts.sheriff - counts.doctor;
+  counts.civilian = n - mafiaTotal - counts.sheriff - counts.doctor - counts.prostitute;
   if (counts.mafia < 0) throw new GameError('Мафії має бути щонайменше стільки ж, скільки донів');
   if (counts.civilian < 0) throw new GameError('Ролей більше, ніж гравців');
   if (mafiaTotal * 2 >= n) throw new GameError('Забагато мафії: мирних має бути більше');

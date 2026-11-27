@@ -17,6 +17,7 @@ export function MafiaPage() {
           <span className="stat-pill">🙂 Мирні</span>
           <span className="stat-pill">⭐ Шериф</span>
           <span className="stat-pill">💉 Лікар</span>
+          <span className="stat-pill">💋 Повія</span>
           <span className="stat-pill">🔫 Мафія</span>
           <span className="stat-pill">🎩 Дон</span>
           <Link to="/how-to-play" className="stat-pill" style={{ textDecoration: 'none' }}>

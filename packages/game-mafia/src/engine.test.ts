@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameError, seededRandom, type EngineContext } from '@jvof/game-core';
 import { policyHears, policySees } from '@jvof/shared';
-import { defaultRoleCounts, mafiaEngine as E, type MafiaState, type Role } from './index';
+import { computeRoleCounts, defaultRoleCounts, mafiaEngine as E, normalizeMafiaSettings, type MafiaState, type Role } from './index';
 
 const ids = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'];
 // Фіксований розклад ролей для тестів: p1 дон, p2 мафія, p3 шериф, p4 лікар, решта мирні
@@ -40,10 +40,10 @@ function skipDiscussion(s: MafiaState): MafiaState {
 
 describe('склад ролей', () => {
   it('для 8 гравців: 4 мирних, шериф, лікар, мафія, дон', () => {
-    expect(defaultRoleCounts(8)).toEqual({ civilian: 4, sheriff: 1, doctor: 1, mafia: 1, don: 1 });
+    expect(defaultRoleCounts(8)).toEqual({ civilian: 4, sheriff: 1, doctor: 1, prostitute: 0, mafia: 1, don: 1 });
   });
   it('для 5 гравців одна мафія', () => {
-    expect(defaultRoleCounts(5)).toEqual({ civilian: 2, sheriff: 1, doctor: 1, mafia: 1, don: 0 });
+    expect(defaultRoleCounts(5)).toEqual({ civilian: 2, sheriff: 1, doctor: 1, prostitute: 0, mafia: 1, don: 0 });
   });
   it('роздає рівно стільки ролей, скільки гравців, і кожному свою', () => {
     const players = ids.map((id, i) => ({ id, nickname: id, seat: i + 1 }));
@@ -276,5 +276,94 @@ describe('політика звуку', () => {
     s = skipDiscussion(timeout(timeout(s)));
     s = voteAll(s, (v) => (v === 'p8' ? 'p7' : 'p8'));
     expect(E.getChatAccess(s, 'p8')).toEqual({ read: ['main', 'ghosts'], write: ['ghosts'] });
+  });
+});
+
+describe('Повія', () => {
+  // p1 дон, p2 мафія, p3 шериф, p4 лікар, p5 повія, решта мирні
+  const withProstitute = (settings: Record<string, unknown> = {}) => {
+    const s = setup({ prostitute: true, firstNightKill: true, ...settings });
+    s.players[4].role = 'prostitute';
+    return s;
+  };
+
+  it('вмикається галочкою і з’являється від 6 гравців замість мирного', () => {
+    const on = normalizeMafiaSettings({ prostitute: true });
+    expect(computeRoleCounts(8, on)).toMatchObject({ prostitute: 1, civilian: 3 });
+    expect(computeRoleCounts(5, on).prostitute).toBe(0);
+    expect(computeRoleCounts(8, normalizeMafiaSettings({})).prostitute).toBe(0);
+  });
+
+  it('блокує нічну дію: шериф, до якого прийшла повія, нічого не дізнається', () => {
+    let s = timeout(withProstitute());
+    s = act(s, 'p3', { type: 'night', kind: 'check', target: 'p1' });
+    expect(E.getPlayerView(s, 'p3')!.checks).toEqual([]); // результат лише вранці
+    s = act(s, 'p5', { type: 'night', kind: 'visit', target: 'p3' });
+    s = timeout(s);
+    expect(E.getPlayerView(s, 'p3')!.checks).toEqual([expect.objectContaining({ targetId: 'p1', result: null })]);
+  });
+
+  it('блокує голос мафіозі: якщо повія в дона, рахується вибір решти мафії', () => {
+    let s = timeout(withProstitute());
+    s = act(s, 'p1', { type: 'night', kind: 'kill', target: 'p6' });
+    s = act(s, 'p2', { type: 'night', kind: 'kill', target: 'p7' });
+    s = act(s, 'p5', { type: 'night', kind: 'visit', target: 'p1' });
+    s = timeout(s);
+    expect(pub(s).lastNight?.killedId).toBe('p7');
+  });
+
+  it('блокує лікаря: його лікування не спрацьовує', () => {
+    let s = timeout(withProstitute());
+    s = act(s, 'p1', { type: 'night', kind: 'kill', target: 'p6' });
+    s = act(s, 'p4', { type: 'night', kind: 'heal', target: 'p6' });
+    s = act(s, 'p5', { type: 'night', kind: 'visit', target: 'p4' });
+    s = timeout(s);
+    expect(pub(s).lastNight?.killedId).toBe('p6');
+  });
+
+  it('не захищає від нічного вбивства', () => {
+    let s = timeout(withProstitute());
+    s = act(s, 'p1', { type: 'night', kind: 'kill', target: 'p6' });
+    s = act(s, 'p5', { type: 'night', kind: 'visit', target: 'p6' });
+    s = timeout(s);
+    expect(pub(s).lastNight?.killedId).toBe('p6');
+    expect(pub(s).alibiId).toBeNull(); // мертвому алібі ні до чого
+  });
+
+  it('вдень у відвіданого алібі: за нього не можна голосувати', () => {
+    let s = timeout(withProstitute());
+    s = act(s, 'p5', { type: 'night', kind: 'visit', target: 'p2' });
+    s = timeout(s); // ранок
+    expect(pub(s).alibiId).toBe('p2');
+    s = skipDiscussion(timeout(s));
+    expect(s.phase).toBe('VOTING');
+    expect(pub(s).voting!.candidates).not.toContain('p2');
+    expect(() => act(s, 'p6', { type: 'vote', target: 'p2' })).toThrow(GameError);
+    expect(() => act(s, 'p2', { type: 'vote', target: 'p6' })).not.toThrow(); // сам голосувати може
+  });
+
+  it('не може йти до того самого гравця дві ночі поспіль і до себе', () => {
+    let s = timeout(withProstitute());
+    expect(() => act(s, 'p5', { type: 'night', kind: 'visit', target: 'p5' })).toThrow(/себе/);
+    s = act(s, 'p5', { type: 'night', kind: 'visit', target: 'p6' });
+    s = timeout(s);
+    s = skipDiscussion(timeout(s));
+    s = voteAll(s, () => 'skip');
+    s = timeout(s); // ніч 2
+    expect(s.phase).toBe('NIGHT');
+    expect(E.getPlayerView(s, 'p5')!.night!.cannotVisitId).toBe('p6');
+    expect(() => act(s, 'p5', { type: 'night', kind: 'visit', target: 'p6' })).toThrow(/поспіль/);
+    expect(() => act(s, 'p5', { type: 'night', kind: 'visit', target: 'p7' })).not.toThrow();
+  });
+
+  it('ніч не закінчується достроково, поки повія не зробила вибір', () => {
+    let s = timeout(withProstitute());
+    s = act(s, 'p1', { type: 'night', kind: 'kill', target: 'p6' });
+    s = act(s, 'p3', { type: 'night', kind: 'check', target: 'p8' });
+    s = act(s, 'p1', { type: 'night', kind: 'check', target: 'p8' });
+    s = act(s, 'p4', { type: 'night', kind: 'heal', target: 'p7' });
+    expect(s.phase).toBe('NIGHT');
+    s = act(s, 'p5', { type: 'night', kind: 'visit', target: 'p8' });
+    expect(s.phase).toBe('DAY_ANNOUNCE');
   });
 });

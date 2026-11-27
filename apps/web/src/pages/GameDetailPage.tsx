@@ -31,12 +31,17 @@ export default function GameDetailPage() {
   for (const e of game.events) {
     const p = e.payload as Record<string, unknown>;
     const round = Number(e.phase.split('-')[1]) || 0;
-    if (e.type === 'night_result') chronicle.push({ kind: 'night', round, killedId: (p.killedId as string) ?? null });
+    if (e.type === 'night_result') {
+      const alibi = (p.visitId as string | null) ?? null;
+      chronicle.push({ kind: 'night', round, killedId: (p.killedId as string) ?? null, alibiId: alibi && alibi !== p.killedId ? alibi : null });
+    }
     if (e.type === 'vote_result') chronicle.push({ kind: 'vote', round, voteRound: p.voteRound as 1 | 2, votes: p.votes as Record<string, string>, leaders: p.leaders as string[] });
     if (e.type === 'execution') chronicle.push({ kind: 'execution', round, targetId: (p.targetId as string) ?? null, outcome: p.outcome as 'executed' | 'tie' | 'nobody' });
     if (e.type === 'player_left' && e.actorId) chronicle.push({ kind: 'left', round, playerId: e.actorId });
   }
-  const nightDetails = game.events.filter((e) => e.type === 'night_result').map((e) => ({ phase: e.phase, ...(e.payload as { targetId: string | null; healId: string | null; saved: boolean }) }));
+  const nightDetails = game.events
+    .filter((e) => e.type === 'night_result')
+    .map((e) => ({ phase: e.phase, ...(e.payload as { targetId: string | null; healId: string | null; saved: boolean; visitId?: string | null }) }));
 
   return (
     <div className="page medium col" style={{ gap: '1.2rem' }}>
@@ -87,6 +92,7 @@ export default function GameDetailPage() {
               <div key={n.phase} className="faint">
                 {n.phase.replace('night-', 'Ніч ')}: мафія обрала {nick(n.targetId)}, лікар рятував {nick(n.healId)}
                 {n.saved ? ' — врятував!' : ''}
+                {n.visitId ? `, повія ходила до ${nick(n.visitId)}` : ''}
               </div>
             ))}
           </>
