@@ -44,8 +44,6 @@ export interface SpySettings {
   roundMinutes: number;
   /** Чи роздавати мешканцям ролі в локації */
   roles: boolean;
-  /** Скільки локацій у добірці на партію */
-  locationCount: number;
   voteSeconds: number;
   allowSpectators: boolean;
 }
@@ -64,7 +62,7 @@ export interface SpyState {
   settings: SpySettings;
   players: SpyPlayer[];
   locationId: string;
-  /** Добірка локацій цієї партії (справжня — серед них) */
+  /** Локації, з яких обирає шпигун (зараз — усі) */
   locationIds: string[];
   phase: SpyPhase;
   /** Таймер поточної фази */
@@ -131,16 +129,6 @@ const REVEAL_MS = 10_000;
 
 export const spySettingsSchema: SettingsField[] = [
   { key: 'roundMinutes', label: 'Тривалість раунду', type: 'number', default: 8, min: 3, max: 15, unit: 'хв' },
-  {
-    key: 'locationCount',
-    label: 'Локацій у партії',
-    type: 'number',
-    default: 30,
-    min: 10,
-    max: 100,
-    step: 5,
-    hint: 'Випадкова добірка зі 100 локацій. Що більше, то важче шпигуну вгадати',
-  },
   { key: 'roles', label: 'Ролі в локації', type: 'boolean', default: false, hint: 'Кожен мешканець отримує ще й роль: «Хірург» у лікарні, «Клоун» у цирку' },
   { key: 'voteSeconds', label: 'Час на голосування', type: 'number', default: 30, min: 10, max: 90, step: 5, unit: 'с' },
   { key: 'allowSpectators', label: 'Друзі можуть дивитися як глядачі', type: 'boolean', default: true },
@@ -328,7 +316,7 @@ function handlePlayer(s: SpyState, actorId: string, raw: unknown, ctx: EngineCon
       if (!me.isSpy) throw new GameError('Вгадувати локацію може лише шпигун');
       if (s.phase !== 'QUESTIONS' && s.phase !== 'ROLE_REVEAL') throw new GameError('Під час голосування вгадувати не можна');
       const loc = locationById(String(a.locationId));
-      if (!loc || !s.locationIds.includes(loc.id)) throw new GameError('Цієї локації немає в цій партії');
+      if (!loc || !s.locationIds.includes(loc.id)) throw new GameError('Невідома локація');
       log(s, ctx, 'guess', me.id, { locationId: loc.id });
       if (loc.id === s.locationId) finish(s, ctx, 'spy', 'spy_guessed', loc.id);
       else finish(s, ctx, 'locals', 'spy_missed', loc.id);
@@ -346,8 +334,7 @@ export const spyfallEngine: GameEngine<SpyState, SpyPublicState, SpyPlayerView> 
     if (players.length < SPY_MIN_PLAYERS) throw new GameError(`Для Шпигуна потрібно щонайменше ${SPY_MIN_PLAYERS} гравці`);
     if (players.length > SPY_MAX_PLAYERS) throw new GameError(`Для Шпигуна можна не більше ${SPY_MAX_PLAYERS} гравців`);
     const settings = normalizeSpySettings((config ?? {}) as Record<string, unknown>);
-    const pool = shuffle(LOCATIONS, ctx.random).slice(0, Math.min(LOCATIONS.length, settings.locationCount));
-    const location = pool[Math.floor(ctx.random() * pool.length)];
+    const location = LOCATIONS[Math.floor(ctx.random() * LOCATIONS.length)];
     const seated = [...players].sort((a, b) => a.seat - b.seat);
     const spyIndex = Math.floor(ctx.random() * seated.length);
     const roles = shuffle(location.roles, ctx.random);
@@ -363,7 +350,7 @@ export const spyfallEngine: GameEngine<SpyState, SpyPublicState, SpyPlayerView> 
         usedAccusation: false,
       })),
       locationId: location.id,
-      locationIds: LOCATIONS.filter((l) => pool.includes(l)).map((l) => l.id),
+      locationIds: LOCATIONS.map((l) => l.id),
       phase: 'ROLE_REVEAL',
       timer: noTimer(),
       roundRemaining: null,

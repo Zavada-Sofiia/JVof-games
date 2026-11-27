@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LOCATIONS, type SpyOutcome, type SpyPhase, type SpyPlayerView, type SpyPublicState } from '@jvof/game-spyfall';
+import { type SpyOutcome, type SpyPhase, type SpyPlayerView, type SpyPublicState } from '@jvof/game-spyfall';
 import { Modal } from '../../components/ui';
 import { sounds } from '../../lib/sounds';
 import { useCountdown } from '../../lib/useCountdown';
@@ -76,7 +76,6 @@ function Panel(p: GameProps) {
   const [busy, setBusy] = useState(false);
   const [accuse, setAccuse] = useState(false);
   const [guess, setGuess] = useState<{ id: string; title: string } | null>(null);
-  const [catalog, setCatalog] = useState(false);
   const me = g.players.find((x) => x.id === p.meId);
   const others = g.players.filter((x) => x.id !== p.meId);
   const run = async (action: unknown) => {
@@ -177,28 +176,14 @@ function Panel(p: GameProps) {
         </div>
       )}
 
-      <div className="card tight col">
-        <h3>📍 Можливі локації</h3>
-        {v?.isSpy && (g.phase === 'QUESTIONS' || g.phase === 'ROLE_REVEAL') && <div className="faint">Знаєте, де ви? Натисніть на локацію, щоб розкритися й назвати її.</div>}
-        <div className="targets">
-          {g.locations.map((l) => {
-            const mine = v?.location?.id === l.id;
-            const canGuess = v?.isSpy && (g.phase === 'QUESTIONS' || g.phase === 'ROLE_REVEAL');
-            return (
-              <button key={l.id} className={`btn sm ${mine ? 'selected' : ''}`} disabled={!canGuess && !mine} style={{ opacity: canGuess || mine ? 1 : 0.75 }} onClick={() => canGuess && setGuess(l)}>
-                {l.emoji} {l.title}
-              </button>
-            );
-          })}
-        </div>
-        {g.locations.length < LOCATIONS.length && (
-          <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => setCatalog(true)}>
-            🗺 Усі локації ({LOCATIONS.length})
-          </button>
-        )}
-      </div>
-
-      {catalog && <AllLocations inGame={new Set(g.locations.map((l) => l.id))} mine={v?.location?.id ?? null} onClose={() => setCatalog(false)} />}
+      <LocationBoard
+        gameId={p.room.game?.id ?? 'none'}
+        locations={g.locations}
+        mine={v?.location?.id ?? null}
+        isSpy={!!v?.isSpy}
+        canGuess={!!v?.isSpy && (g.phase === 'QUESTIONS' || g.phase === 'ROLE_REVEAL')}
+        onGuess={setGuess}
+      />
 
       {accuse && (
         <Modal title="Кого звинуватити?" onClose={() => setAccuse(false)}>
@@ -244,27 +229,114 @@ function Panel(p: GameProps) {
   );
 }
 
-/** Каталог усіх локацій (довідка; добірка цієї партії підсвічена) */
-function AllLocations({ inGame, mine, onClose }: { inGame: Set<string>; mine: string | null; onClose: () => void }) {
+type Loc = { id: string; title: string; emoji: string };
+
+/** Закреслення шпигуна живуть лише в його браузері (окремо для кожної партії) */
+function useCrossed(gameId: string) {
+  const key = `jvof-spy-crossed:${gameId}`;
+  const [crossed, setCrossed] = useState<Set<string>>(() => {
+    try {
+      // закреслення старих партій більше не потрібні
+      for (const k of Object.keys(localStorage)) if (k.startsWith('jvof-spy-crossed:') && k !== key) localStorage.removeItem(k);
+      return new Set(JSON.parse(localStorage.getItem(key) ?? '[]') as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const save = (next: Set<string>) => {
+    setCrossed(next);
+    try {
+      localStorage.setItem(key, JSON.stringify([...next]));
+    } catch {
+      /* немає місця — не страшно */
+    }
+  };
+  return {
+    crossed,
+    toggle: (id: string) => {
+      const next = new Set(crossed);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      save(next);
+    },
+    clear: () => save(new Set()),
+  };
+}
+
+/** Усі локації: пошук; шпигун закреслює зайві й може назвати свою */
+function LocationBoard({
+  gameId,
+  locations,
+  mine,
+  isSpy,
+  canGuess,
+  onGuess,
+}: {
+  gameId: string;
+  locations: Loc[];
+  mine: string | null;
+  isSpy: boolean;
+  canGuess: boolean;
+  onGuess: (l: Loc) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [mode, setMode] = useState<'cross' | 'guess'>('cross');
+  const { crossed, toggle, clear } = useCrossed(gameId);
+  const q = query.trim().toLowerCase();
+  const shown = q ? locations.filter((l) => l.title.toLowerCase().includes(q)) : locations;
+  const guessing = canGuess && mode === 'guess';
+
   return (
-    <Modal title={`Усі локації (${LOCATIONS.length})`} onClose={onClose}>
-      <p className="faint" style={{ marginTop: 0 }}>
-        Підсвічені — у добірці цієї партії ({inGame.size}). Справжня локація завжди серед них.
-      </p>
-      <div className="targets" style={{ maxHeight: '60vh', overflow: 'auto' }}>
-        {[...LOCATIONS]
-          .sort((a, b) => Number(inGame.has(b.id)) - Number(inGame.has(a.id)) || a.title.localeCompare(b.title, 'uk'))
-          .map((l) => (
-            <div
+    <div className="card tight col">
+      <div className="row">
+        <h3 className="grow" style={{ margin: 0 }}>
+          📍 Локації ({locations.length})
+        </h3>
+        {isSpy && crossed.size > 0 && (
+          <span className="faint">
+            закреслено {crossed.size} ·{' '}
+            <button className="btn ghost sm" style={{ padding: '0 0.3rem' }} onClick={clear}>
+              очистити
+            </button>
+          </span>
+        )}
+      </div>
+      {isSpy && (
+        <div className="tabs">
+          <button className={`tab ${mode === 'cross' ? 'active' : ''}`} onClick={() => setMode('cross')}>
+            ✏️ Закреслювати
+          </button>
+          <button className={`tab ${mode === 'guess' ? 'active' : ''}`} disabled={!canGuess} onClick={() => setMode('guess')} title={canGuess ? '' : 'Під час голосування вгадувати не можна'}>
+            🎯 Назвати локацію
+          </button>
+        </div>
+      )}
+      {isSpy && (
+        <div className="faint">
+          {guessing ? 'Натисніть локацію, щоб розкритися й назвати її. Вгадаєте — перемога, ні — програш.' : 'Натискайте локації, які точно не підходять, — вони закресляться. Це бачите лише ви.'}
+        </div>
+      )}
+      <input className="input" placeholder="Пошук локації…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Пошук локації" />
+      <div className="targets loc-board">
+        {shown.map((l) => {
+          const isCrossed = isSpy && crossed.has(l.id);
+          return (
+            <button
               key={l.id}
-              className={`btn sm ${l.id === mine ? 'selected' : ''}`}
-              style={{ cursor: 'default', opacity: inGame.has(l.id) ? 1 : 0.45, justifyContent: 'flex-start' }}
+              className={`btn sm loc ${l.id === mine ? 'selected' : ''} ${isCrossed ? 'crossed' : ''} ${guessing ? 'guessing' : ''}`}
+              disabled={!isSpy && l.id !== mine}
+              onClick={() => (guessing ? onGuess(l) : isSpy ? toggle(l.id) : undefined)}
+              title={isSpy ? (guessing ? `Назвати «${l.title}»` : isCrossed ? 'Повернути' : 'Закреслити') : undefined}
+              aria-label={`${l.title}${isCrossed ? ' (закреслено)' : ''}`}
+              aria-pressed={isSpy && !guessing ? isCrossed : undefined}
             >
               {l.emoji} {l.title}
-            </div>
-          ))}
+            </button>
+          );
+        })}
+        {shown.length === 0 && <div className="faint">Нічого не знайдено</div>}
       </div>
-    </Modal>
+    </div>
   );
 }
 

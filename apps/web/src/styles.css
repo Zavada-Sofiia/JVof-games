@@ -1418,3 +1418,24 @@ a.game-card:hover {
 .modal:has(.targets) {
   width: min(640px, 100%);
 }
+
+/* дошка локацій у Шпигуні */
+.loc-board {
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 2px;
+}
+.btn.loc:disabled {
+  opacity: 0.8;
+  cursor: default;
+}
+.btn.loc.crossed {
+  text-decoration: line-through !important;
+  text-decoration-thickness: 2px !important;
+  text-decoration-color: var(--pink) !important;
+  opacity: 0.45;
+}
+.btn.loc.guessing:hover:not(:disabled) {
+  border-color: var(--pink);
+  box-shadow: 0 0 16px rgba(236, 72, 153, 0.45);
+}
