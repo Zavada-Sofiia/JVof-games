@@ -1415,3 +1415,6 @@ a.game-card:hover {
     grid-template-columns: 1fr;
   }
 }
+.modal:has(.targets) {
+  width: min(640px, 100%);
+}

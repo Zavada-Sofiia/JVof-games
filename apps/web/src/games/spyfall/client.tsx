@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { SpyOutcome, SpyPhase, SpyPlayerView, SpyPublicState } from '@jvof/game-spyfall';
+import { LOCATIONS, type SpyOutcome, type SpyPhase, type SpyPlayerView, type SpyPublicState } from '@jvof/game-spyfall';
 import { Modal } from '../../components/ui';
 import { sounds } from '../../lib/sounds';
 import { useCountdown } from '../../lib/useCountdown';
@@ -76,6 +76,7 @@ function Panel(p: GameProps) {
   const [busy, setBusy] = useState(false);
   const [accuse, setAccuse] = useState(false);
   const [guess, setGuess] = useState<{ id: string; title: string } | null>(null);
+  const [catalog, setCatalog] = useState(false);
   const me = g.players.find((x) => x.id === p.meId);
   const others = g.players.filter((x) => x.id !== p.meId);
   const run = async (action: unknown) => {
@@ -190,7 +191,14 @@ function Panel(p: GameProps) {
             );
           })}
         </div>
+        {g.locations.length < LOCATIONS.length && (
+          <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => setCatalog(true)}>
+            🗺 Усі локації ({LOCATIONS.length})
+          </button>
+        )}
       </div>
+
+      {catalog && <AllLocations inGame={new Set(g.locations.map((l) => l.id))} mine={v?.location?.id ?? null} onClose={() => setCatalog(false)} />}
 
       {accuse && (
         <Modal title="Кого звинуватити?" onClose={() => setAccuse(false)}>
@@ -233,6 +241,30 @@ function Panel(p: GameProps) {
         </Modal>
       )}
     </div>
+  );
+}
+
+/** Каталог усіх локацій (довідка; добірка цієї партії підсвічена) */
+function AllLocations({ inGame, mine, onClose }: { inGame: Set<string>; mine: string | null; onClose: () => void }) {
+  return (
+    <Modal title={`Усі локації (${LOCATIONS.length})`} onClose={onClose}>
+      <p className="faint" style={{ marginTop: 0 }}>
+        Підсвічені — у добірці цієї партії ({inGame.size}). Справжня локація завжди серед них.
+      </p>
+      <div className="targets" style={{ maxHeight: '60vh', overflow: 'auto' }}>
+        {[...LOCATIONS]
+          .sort((a, b) => Number(inGame.has(b.id)) - Number(inGame.has(a.id)) || a.title.localeCompare(b.title, 'uk'))
+          .map((l) => (
+            <div
+              key={l.id}
+              className={`btn sm ${l.id === mine ? 'selected' : ''}`}
+              style={{ cursor: 'default', opacity: inGame.has(l.id) ? 1 : 0.45, justifyContent: 'flex-start' }}
+            >
+              {l.emoji} {l.title}
+            </div>
+          ))}
+      </div>
+    </Modal>
   );
 }
 
