@@ -147,7 +147,7 @@ function resolveNight(s: MafiaState, ctx: EngineContext): string | null {
   const heal = doctor && !blocked(doctor.id) ? s.night.doctorHeal : null;
   if (doctor && heal === doctor.id) s.lastSelfHealRound = s.round;
 
-  // Перевірки шерифа й дона розкриваються вранці (бо їх могла заблокувати Повія)
+  // Перевірки розкриваються вранці. Повія може зірвати перевірку шерифа, але не дона.
   const sheriff = aliveWithRole(s, 'sheriff');
   if (sheriff && s.night.sheriffCheck) {
     const t = player(s, s.night.sheriffCheck)!;
@@ -156,7 +156,7 @@ function resolveNight(s: MafiaState, ctx: EngineContext): string | null {
   const don = aliveWithRole(s, 'don');
   if (don && s.night.donCheck) {
     const t = player(s, s.night.donCheck)!;
-    s.checks.push({ by: 'don', actorId: don.id, round: s.round, targetId: t.id, result: blocked(don.id) ? null : t.role === 'sheriff' });
+    s.checks.push({ by: 'don', actorId: don.id, round: s.round, targetId: t.id, result: t.role === 'sheriff' });
   }
 
   const saved = target !== null && target === heal;

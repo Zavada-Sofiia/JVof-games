@@ -303,6 +303,14 @@ describe('Повія', () => {
     expect(E.getPlayerView(s, 'p3')!.checks).toEqual([expect.objectContaining({ targetId: 'p1', result: null })]);
   });
 
+  it('не впливає на перевірку дона: дон дізнається, чи гравець шериф', () => {
+    let s = timeout(withProstitute());
+    s = act(s, 'p1', { type: 'night', kind: 'check', target: 'p3' });
+    s = act(s, 'p5', { type: 'night', kind: 'visit', target: 'p1' });
+    s = timeout(s);
+    expect(E.getPlayerView(s, 'p1')!.checks).toEqual([expect.objectContaining({ by: 'don', targetId: 'p3', result: true })]);
+  });
+
   it('блокує голос мафіозі: якщо повія в дона, рахується вибір решти мафії', () => {
     let s = timeout(withProstitute());
     s = act(s, 'p1', { type: 'night', kind: 'kill', target: 'p6' });

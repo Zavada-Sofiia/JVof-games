@@ -1359,8 +1359,18 @@ a.game-card:hover {
 }
 .video-grid {
   width: 100%;
-  max-width: calc(var(--cols, 3) * 440px);
-  margin: 0 auto;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+/* JS підібрав колонки й розмір: плитки вміщаються без прокрутки */
+.video-grid.fitted {
+  overflow: hidden;
+  justify-content: center;
+  align-content: center;
+}
+/* плитка завжди має свою висоту 4:3 — без цього рядки сітки стискались і плитки налазили одна на одну */
+.tile {
+  min-height: auto;
+  align-self: start;
 }
 
 /* іконки-кнопки в шапці */

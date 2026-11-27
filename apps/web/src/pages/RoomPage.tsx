@@ -21,6 +21,7 @@ import type { GameProps, TileInfo } from '../games/types';
 import { api } from '../lib/api';
 import { emitAck, getSocket } from '../lib/socket';
 import { MeshProvider } from '../rtc/mesh';
+import { useFitGrid } from '../lib/useFitGrid';
 import { useAuth } from '../store/auth';
 import { useMedia } from '../store/media';
 import { toast, toastError } from '../store/ui';
@@ -77,6 +78,8 @@ function Room({ code }: { code: string }) {
   const [unread, setUnread] = useState(false);
   const [devicesOpen, setDevicesOpen] = useState(false);
   const [meshReady, setMeshReady] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const grid = useFitGrid(gridRef, state?.members.length ?? 0);
   const skew = useRef(0);
   const mesh = useRef<MeshProvider | null>(null);
   const prevPublic = useRef<unknown>(null);
@@ -233,7 +236,11 @@ function Room({ code }: { code: string }) {
     <div className="room">
       <div className="room-main">
         {gameProps && client ? <client.Bar {...gameProps} /> : <LobbyBar state={state} />}
-        <div className="video-grid" style={{ ['--cols' as string]: tiles.length <= 1 ? 1 : tiles.length <= 4 ? 2 : tiles.length <= 9 ? 3 : 4 }}>
+        <div
+          className={`video-grid ${grid ? 'fitted' : ''}`}
+          ref={gridRef}
+          style={grid ? { gridTemplateColumns: `repeat(${grid.cols}, ${grid.width}px)` } : undefined}
+        >
           {tiles.map((m) => (
             <Tile
               key={m.id}

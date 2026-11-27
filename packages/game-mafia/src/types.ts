@@ -14,7 +14,7 @@ export const ROLE_INFO: Record<Role, { title: string; team: Team; description: s
   prostitute: {
     title: 'Повія',
     team: 'civilians',
-    description: 'Щоночі йдете до когось у гості: його нічна дія не спрацює, а наступного дня в нього алібі — за нього не голосують.',
+    description: 'Щоночі йдете до когось у гості: його нічна дія не спрацює (крім перевірки дона), а наступного дня в нього алібі — за нього не голосують.',
   },
   mafia: { title: 'Мафія', team: 'mafia', description: 'Щоночі разом із командою обираєте жертву.' },
   don: {
