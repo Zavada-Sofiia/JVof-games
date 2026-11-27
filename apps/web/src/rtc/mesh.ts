@@ -3,6 +3,17 @@ import type { AppSocket } from '../lib/socket';
 
 export type PeerState = 'connecting' | 'connected' | 'failed';
 
+export interface PeerDiagnostics {
+  id: string;
+  state: PeerState;
+  /** relay — через TURN, direct — напряму, null — шляху ще немає */
+  route: 'relay' | 'direct' | null;
+  audioIn: number;
+  videoIn: number;
+  audioOut: number;
+  videoOut: number;
+}
+
 /**
  * Абстракція відео-сервісу. Зараз — WebRTC P2P (mesh). Якщо колись знадобиться LiveKit,
  * він реалізує той самий інтерфейс, і гру переписувати не доведеться (розділ 5).
@@ -27,8 +38,11 @@ interface Peer {
   polite: boolean;
   makingOffer: boolean;
   ignoreOffer: boolean;
-  audio: RTCRtpSender;
-  video: RTCRtpSender;
+  /** Відправники звуку й відео (у відповідача з'являються після першої пропозиції) */
+  audio: RTCRtpSender | null;
+  video: RTCRtpSender | null;
+  /** Хто в парі створює лінії й робить пропозицію (менший id) */
+  offerer: boolean;
   stream: MediaStream;
   pending: RTCIceCandidateInit[];
   /** Сесія співрозмовника, з якою зв'язане це з'єднання */
@@ -113,8 +127,23 @@ export class MeshProvider implements VideoProvider {
   private applyLocal(p: Peer) {
     const a = this.local.sendAudioTo(p.id) ? this.local.audio : null;
     const v = this.local.sendVideoTo(p.id) ? this.local.video : null;
-    if (p.audio.track !== a) p.audio.replaceTrack(a).catch(() => {});
-    if (p.video.track !== v) p.video.replaceTrack(v).catch(() => {});
+    if (p.audio && p.audio.track !== a) p.audio.replaceTrack(a).catch(() => {});
+    if (p.video && p.video.track !== v) p.video.replaceTrack(v).catch(() => {});
+  }
+
+  /**
+   * Відповідач не створює своїх ліній: він бере лінії з пропозиції, вмикає на них надсилання
+   * й підставляє свої треки. Так одні переговори одразу дають потік в обидва боки.
+   */
+  private adoptTransceivers(p: Peer) {
+    for (const t of p.pc.getTransceivers()) {
+      const kind = t.receiver.track?.kind;
+      if (kind === 'audio' && !p.audio) p.audio = t.sender;
+      else if (kind === 'video' && !p.video) p.video = t.sender;
+      else continue;
+      if (t.direction !== 'sendrecv') t.direction = 'sendrecv';
+    }
+    this.applyLocal(p);
   }
 
   private signal(to: string, signal: RtcSignal) {
@@ -129,9 +158,12 @@ export class MeshProvider implements VideoProvider {
 
   private create(id: string, remoteSession: string | null = null): Peer {
     const pc = new RTCPeerConnection({ iceServers: this.ice.iceServers });
-    // Кожен надсилає свої аудіо й відео в окремих «sendonly» лініях, а приймає лінії співрозмовника
-    const audioTx = pc.addTransceiver('audio', { direction: 'sendonly' });
-    const videoTx = pc.addTransceiver('video', { direction: 'sendonly' });
+    // Лінії (звук і відео в обидва боки) створює лише один бік пари — той, у кого менший id.
+    // Раніше їх створювали обидва, і після зустрічних пропозицій лінії одного боку губились:
+    // потік ішов лише в один бік (хтось когось бачив, а його — ні).
+    const offerer = this.selfId < id;
+    const audioTx = offerer ? pc.addTransceiver('audio', { direction: 'sendrecv' }) : null;
+    const videoTx = offerer ? pc.addTransceiver('video', { direction: 'sendrecv' }) : null;
 
     const peer: Peer = {
       id,
@@ -139,8 +171,9 @@ export class MeshProvider implements VideoProvider {
       polite: this.selfId > id,
       makingOffer: false,
       ignoreOffer: false,
-      audio: audioTx.sender,
-      video: videoTx.sender,
+      audio: audioTx?.sender ?? null,
+      video: videoTx?.sender ?? null,
+      offerer,
       stream: new MediaStream(),
       pending: [],
       remoteSession,
@@ -195,10 +228,13 @@ export class MeshProvider implements VideoProvider {
     this.applyLocal(peer);
     this.emit();
     this.emitStates();
+    // Відповідач вітається: якщо пропонувач тримає старе з'єднання з минулою сесією, він його перебудує
+    if (!offerer) this.signal(id, {});
     return peer;
   }
 
   private limitVideo(p: Peer) {
+    if (!p.video) return;
     try {
       const params = p.video.getParameters();
       if (!params.encodings?.length) return;
@@ -224,10 +260,59 @@ export class MeshProvider implements VideoProvider {
     this.emitStates();
   }
 
+  /** Для вікна діагностики: стан, маршрут і скільки байтів звуку/відео пройшло в кожен бік */
+  async diagnostics(): Promise<PeerDiagnostics[]> {
+    const out: PeerDiagnostics[] = [];
+    for (const [id, p] of this.peers) {
+      const d: PeerDiagnostics = { id, state: p.state, route: null, audioIn: 0, videoIn: 0, audioOut: 0, videoOut: 0 };
+      try {
+        const stats = await p.pc.getStats();
+        const byId = new Map<string, Record<string, unknown>>();
+        stats.forEach((r) => byId.set(r.id, r as Record<string, unknown>));
+        stats.forEach((r) => {
+          const s = r as Record<string, unknown>;
+          if (s.type === 'transport' && s.selectedCandidatePairId) {
+            const pair = byId.get(String(s.selectedCandidatePairId));
+            const local = pair && byId.get(String(pair.localCandidateId));
+            const remote = pair && byId.get(String(pair.remoteCandidateId));
+            if (local) d.route = local.candidateType === 'relay' || remote?.candidateType === 'relay' ? 'relay' : 'direct';
+          }
+          if (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded' && !d.route) {
+            const local = byId.get(String(s.localCandidateId));
+            const remote = byId.get(String(s.remoteCandidateId));
+            d.route = local?.candidateType === 'relay' || remote?.candidateType === 'relay' ? 'relay' : 'direct';
+          }
+          if (s.type === 'inbound-rtp') {
+            if (s.kind === 'audio') d.audioIn += Number(s.bytesReceived ?? 0);
+            if (s.kind === 'video') d.videoIn += Number(s.bytesReceived ?? 0);
+          }
+          if (s.type === 'outbound-rtp') {
+            if (s.kind === 'audio') d.audioOut += Number(s.bytesSent ?? 0);
+            if (s.kind === 'video') d.videoOut += Number(s.bytesSent ?? 0);
+          }
+        });
+      } catch {
+        /* getStats недоступний */
+      }
+      out.push(d);
+    }
+    return out;
+  }
+
+  /** Чи є серед ICE-серверів TURN (без нього в складних мережах з'єднання не буде) */
+  hasTurn() {
+    return this.ice.iceServers.some((s) => (Array.isArray(s.urls) ? s.urls : [s.urls]).some((u) => u.startsWith('turn')));
+  }
+
   restart() {
     // нова сесія: співрозмовники побачать її й теж перебудують з'єднання
     this.session = randomId();
     for (const id of [...this.peers.keys()]) this.rebuild(id);
+  }
+
+  /** Лінії відео-з'єднання (для діагностики) */
+  transceiverCount(id: string) {
+    return this.peers.get(id)?.pc.getTransceivers().length ?? 0;
   }
 
   /** Perfect negotiation (MDN): ввічливий бік поступається при зустрічних offer */
@@ -237,9 +322,15 @@ export class MeshProvider implements VideoProvider {
     if (!peer) peer = this.create(from, signal.session ?? null);
     else if (signal.session && peer.remoteSession && signal.session !== peer.remoteSession) {
       // співрозмовник перезавантажив сторінку — старе з'єднання вже мертве
-      if (!signal.description) return; // кандидати старої/нової сесії до offer ігноруємо
+      if (peer.offerer) {
+        // пропонувач перебудовує одразу (і сам робить нову пропозицію)
+        this.rebuild(from, signal.session);
+        return;
+      }
+      if (signal.description?.type !== 'offer') return; // відповідач чекає на нову пропозицію
       peer = this.rebuild(from, signal.session);
     } else if (signal.session && !peer.remoteSession) peer.remoteSession = signal.session;
+    if (!signal.description && signal.candidate === undefined) return; // привітання
 
     const { pc } = peer;
     try {
@@ -249,6 +340,7 @@ export class MeshProvider implements VideoProvider {
         peer.ignoreOffer = !peer.polite && collision;
         if (peer.ignoreOffer) return;
         await pc.setRemoteDescription(d as RTCSessionDescriptionInit);
+        if (d.type === 'offer') this.adoptTransceivers(peer);
         for (const c of peer.pending.splice(0)) await pc.addIceCandidate(c).catch(() => {});
         if (d.type === 'offer') {
           await pc.setLocalDescription();

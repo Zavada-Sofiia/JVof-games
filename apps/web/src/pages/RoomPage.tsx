@@ -184,6 +184,8 @@ function Room({ code }: { code: string }) {
         provider = new MeshProvider(me.id, getSocket(), ice);
         provider.onStreams(setStreams);
         provider.onStates(setPeerStates);
+        // для налагодження: localStorage.setItem('jvof-debug', '1')
+        if (import.meta.env.DEV || localStorage.getItem('jvof-debug')) (window as unknown as { __jvofMesh?: MeshProvider }).__jvofMesh = provider;
         mesh.current = provider;
         setMeshReady(true);
       });
@@ -376,6 +378,7 @@ function Room({ code }: { code: string }) {
         <Modal title="Пристрої" onClose={() => setDevicesOpen(false)}>
           <DevicePickers />
           {media.error && <p className="error-text">{media.error}</p>}
+          <ConnectionDiagnostics mesh={mesh.current} nick={(id) => state.members.find((m) => m.id === id)?.nickname ?? id} />
           <div className="col" style={{ marginTop: '0.8rem' }}>
             <div className="faint">Когось не чути чи не видно? Спробуйте перепідключити відео й звук з усіма.</div>
             <button
@@ -391,6 +394,50 @@ function Room({ code }: { code: string }) {
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+// ---------- діагностика з'єднань ----------
+
+const kb = (b: number) => (b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} МБ` : `${Math.round(b / 1024)} КБ`);
+
+function ConnectionDiagnostics({ mesh, nick }: { mesh: MeshProvider | null; nick: (id: string) => string }) {
+  const [rows, setRows] = useState<Awaited<ReturnType<MeshProvider['diagnostics']>>>([]);
+  useEffect(() => {
+    if (!mesh) return;
+    let alive = true;
+    const load = () => mesh.diagnostics().then((r) => alive && setRows(r));
+    void load();
+    const t = setInterval(load, 1500);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [mesh]);
+  if (!mesh) return null;
+  return (
+    <div className="col" style={{ marginTop: '1rem', gap: '0.4rem' }}>
+      <h3 style={{ margin: 0 }}>З’єднання з гравцями</h3>
+      {!mesh.hasTurn() && <div className="faint">⚠️ TURN-сервер не налаштовано: гравці в мобільному інтернеті можуть не з’єднатися.</div>}
+      {rows.length === 0 && <div className="faint">У кімнаті поки нікого, крім вас.</div>}
+      <table className="table">
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td>{nick(r.id)}</td>
+              <td>{r.state === 'connected' ? '🟢' : r.state === 'failed' ? '🔴' : '🟡'}</td>
+              <td className="faint">{r.route === 'relay' ? 'через TURN' : r.route === 'direct' ? 'напряму' : '—'}</td>
+              <td className="faint" title="Отримано від гравця: звук / відео">
+                ⬇ {kb(r.audioIn)} / {kb(r.videoIn)}
+              </td>
+              <td className="faint" title="Надіслано гравцю: звук / відео">
+                ⬆ {kb(r.audioOut)} / {kb(r.videoOut)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
