@@ -93,7 +93,8 @@ npm run typecheck    # перевірка типів усіх пакетів
 - `DATABASE_URL` — рядок підключення до Postgres (для Neon — **прямий**, без pooler: так працюють міграції Prisma);
 - `WEB_ORIGIN` — лише якщо підключаєте власний домен (інакше сервер бере адресу з `RENDER_EXTERNAL_URL`);
 - `JWT_SECRET` — Render згенерує сам;
-- за бажанням `RESEND_API_KEY` і `MAIL_FROM` для листів, `TURN_URLS`/`TURN_USERNAME`/`TURN_CREDENTIAL` для складних мереж.
+- `CF_TURN_KEY_ID` і `CF_TURN_API_TOKEN` — Cloudflare TURN (безкоштовно 1000 ГБ/міс). Без TURN гравці в мобільному інтернеті чи за суворим NAT часто не бачать і не чують одне одного;
+- за бажанням `RESEND_API_KEY` і `MAIL_FROM` для листів.
 
 Важливо:
 

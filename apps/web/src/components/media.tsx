@@ -57,18 +57,21 @@ export function VideoEl({ stream, track, mirror }: { stream?: MediaStream | null
 }
 
 /** Звук співрозмовника. muted = отримувач додатково глушить тих, кого зараз не можна чути. */
-export function RemoteAudio({ stream, muted }: { stream: MediaStream; muted: boolean }) {
+export function RemoteAudio({ stream, muted, onBlocked }: { stream: MediaStream; muted: boolean; onBlocked?: () => void }) {
   const ref = useRef<HTMLAudioElement>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (el.srcObject !== stream) el.srcObject = stream;
-    el.play().catch(() => {});
-  }, [stream]);
+    // Safari/iPad блокує звук без дотику користувача — тоді просимо натиснути кнопку
+    el.play().catch((e: { name?: string }) => {
+      if (e?.name === 'NotAllowedError') onBlocked?.();
+    });
+  }, [stream, onBlocked]);
   useEffect(() => {
     if (ref.current) ref.current.muted = muted;
   }, [muted]);
-  return <audio ref={ref} autoPlay />;
+  return <audio ref={ref} autoPlay playsInline data-remote-audio />;
 }
 
 export function DevicePickers() {

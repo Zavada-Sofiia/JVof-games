@@ -193,6 +193,8 @@ export interface StatsDto {
 export type Ack<T = unknown> = (res: { ok: true; data?: T } | { ok: false; error: string }) => void;
 
 export interface RtcSignal {
+  /** Ідентифікатор з'єднання відправника: змінився — значить, він перепідключився, і старе з'єднання треба перебудувати */
+  session?: string;
   description?: { type: 'offer' | 'answer' | 'pranswer' | 'rollback'; sdp?: string };
   candidate?: { candidate: string; sdpMid?: string | null; sdpMLineIndex?: number | null } | null;
 }

@@ -20,7 +20,7 @@ import { gameClients, gameModules } from '../games/registry';
 import type { GameProps, TileInfo } from '../games/types';
 import { api } from '../lib/api';
 import { emitAck, getSocket } from '../lib/socket';
-import { MeshProvider } from '../rtc/mesh';
+import { MeshProvider, type PeerState } from '../rtc/mesh';
 import { useFitGrid } from '../lib/useFitGrid';
 import { useAuth } from '../store/auth';
 import { useMedia } from '../store/media';
@@ -78,7 +78,31 @@ function Room({ code }: { code: string }) {
   const [unread, setUnread] = useState(false);
   const [devicesOpen, setDevicesOpen] = useState(false);
   const [meshReady, setMeshReady] = useState(false);
+  const [peerStates, setPeerStates] = useState<Map<string, PeerState>>(new Map());
+  const [audioBlocked, setAudioBlocked] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
+  const onAudioBlocked = useCallback(() => setAudioBlocked(true), []);
+  const levelCache = useRef(new Map<string, () => number>());
+  const levelGetters = useCallback((id: string) => {
+    let fn = levelCache.current.get(id);
+    if (!fn) {
+      fn = () => mesh.current?.audioLevels().get(id) ?? 0;
+      levelCache.current.set(id, fn);
+    }
+    return fn;
+  }, []);
+  // Будь-який дотик до сторінки — шанс увімкнути заблокований звук
+  useEffect(() => {
+    if (!audioBlocked) return;
+    const unlock = () => {
+      const els = [...document.querySelectorAll<HTMLAudioElement>('audio[data-remote-audio]')];
+      Promise.all(els.map((a) => a.play()))
+        .then(() => setAudioBlocked(false))
+        .catch(() => {});
+    };
+    document.addEventListener('pointerdown', unlock);
+    return () => document.removeEventListener('pointerdown', unlock);
+  }, [audioBlocked]);
   const grid = useFitGrid(gridRef, state?.members.length ?? 0);
   const skew = useRef(0);
   const mesh = useRef<MeshProvider | null>(null);
@@ -159,6 +183,7 @@ function Room({ code }: { code: string }) {
         if (cancelled) return;
         provider = new MeshProvider(me.id, getSocket(), ice);
         provider.onStreams(setStreams);
+        provider.onStates(setPeerStates);
         mesh.current = provider;
         setMeshReady(true);
       });
@@ -252,6 +277,9 @@ function Room({ code }: { code: string }) {
               localTrack={m.id === me.id ? media.videoTrack : null}
               localAudio={m.id === me.id && media.micOn && canSpeak ? media.audioTrack : null}
               info={gameProps && client ? client.tile(gameProps.publicState, view, m.id) : {}}
+              peerState={peerStates.get(m.id)}
+              peerLevel={m.id === me.id ? undefined : levelGetters(m.id)}
+              onAudioBlocked={onAudioBlocked}
             />
           ))}
         </div>
@@ -320,6 +348,11 @@ function Room({ code }: { code: string }) {
                   : 'Мікрофон вимкнено'
                 : 'Зараз вас не чують'}
         </span>
+        {audioBlocked && (
+          <button className="btn primary" onClick={() => document.querySelectorAll<HTMLAudioElement>('audio[data-remote-audio]').forEach((a) => a.play().then(() => setAudioBlocked(false)).catch(() => {}))}>
+            🔊 Увімкнути звук
+          </button>
+        )}
         <span className="spacer hide-sm" />
         {state.status === 'lobby' && meMember.role === 'player' && (
           <button className={`btn ${meMember.ready ? 'selected' : ''}`} onClick={() => getSocket().emit('room:ready', { ready: !meMember.ready })}>
@@ -343,6 +376,19 @@ function Room({ code }: { code: string }) {
         <Modal title="Пристрої" onClose={() => setDevicesOpen(false)}>
           <DevicePickers />
           {media.error && <p className="error-text">{media.error}</p>}
+          <div className="col" style={{ marginTop: '0.8rem' }}>
+            <div className="faint">Когось не чути чи не видно? Спробуйте перепідключити відео й звук з усіма.</div>
+            <button
+              className="btn"
+              onClick={() => {
+                mesh.current?.restart();
+                setDevicesOpen(false);
+                toast('Перепідключаємось…', 'info');
+              }}
+            >
+              🔄 Перепідключити відео
+            </button>
+          </div>
         </Modal>
       )}
     </div>
@@ -350,6 +396,20 @@ function Room({ code }: { code: string }) {
 }
 
 // ---------- плитка відео ----------
+
+/** Опитує рівень звуку співрозмовника 5 разів на секунду */
+function usePolledLevel(get?: () => number) {
+  const [level, setLevel] = useState(0);
+  useEffect(() => {
+    if (!get) {
+      setLevel(0);
+      return;
+    }
+    const t = setInterval(() => setLevel(get()), 200);
+    return () => clearInterval(t);
+  }, [get]);
+  return level;
+}
 
 function Tile({
   member,
@@ -360,7 +420,13 @@ function Tile({
   localTrack,
   localAudio,
   info,
+  peerState,
+  peerLevel,
+  onAudioBlocked,
 }: {
+  peerState?: PeerState;
+  peerLevel?: () => number;
+  onAudioBlocked?: () => void;
   member: RoomMemberDto;
   isMe: boolean;
   stream?: MediaStream;
@@ -370,15 +436,19 @@ function Tile({
   localAudio: MediaStreamTrack | null;
   info: TileInfo;
 }) {
-  const remoteAudio = stream?.getAudioTracks()[0];
-  const level = useAudioLevel(isMe ? localAudio : remoteAudio, isMe ? !!localAudio : canHear && member.mic);
-  const speaking = level > 0.08;
+  // свій голос міряємо через WebAudio, чужий — через статистику WebRTC (у Safari WebAudio з чужим потоком глючить)
+  const localLevel = useAudioLevel(isMe ? localAudio : null, isMe && !!localAudio);
+  const remoteLevel = usePolledLevel(!isMe && canHear && member.mic ? peerLevel : undefined);
+  const speaking = (isMe ? localLevel > 0.08 : remoteLevel > 0.02);
   const showVideo = canSee && member.cam && !member.adminMutedCam && (isMe ? !!localTrack : !!stream?.getVideoTracks().length);
   const cls = ['tile', speaking && 'speaking', info.turn && !speaking && 'turn', info.dead && 'dead'].filter(Boolean).join(' ');
   return (
     <div className={cls}>
       {showVideo ? isMe ? <VideoEl track={localTrack} mirror /> : <VideoEl stream={stream} /> : <Avatar user={member} size={72} />}
-      {!isMe && stream && <RemoteAudio stream={stream} muted={!canHear} />}
+      {!isMe && stream && <RemoteAudio stream={stream} muted={!canHear} onBlocked={onAudioBlocked} />}
+      {!isMe && member.connected && peerState && peerState !== 'connected' && (
+        <div className="tile-status">{peerState === 'failed' ? 'Немає зв’язку з цим гравцем' : 'З’єднуємось…'}</div>
+      )}
       {info.seat !== undefined && <div className="tile-seat">{info.seat}</div>}
       <div className="tile-icons">
         {member.isAdmin && <span className="tile-icon" title="Адмін">👑</span>}

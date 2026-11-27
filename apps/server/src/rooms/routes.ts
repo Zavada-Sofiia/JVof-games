@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { createRoomSchema, inviteSchema, type IceConfigDto, type PublicRoomDto, type RoomInfoDto } from '@jvof/shared';
 import { prisma } from '../db';
-import { env } from '../env';
+import { getIceServers } from '../realtime/ice';
 import { requireAuth } from '../auth/tokens';
 import { forbidden, parse } from '../lib/errors';
 import { emitToUser } from '../realtime/hub';
@@ -37,8 +37,6 @@ export async function roomRoutes(app: FastifyInstance) {
   // Налаштування STUN/TURN видаються лише учасникам кімнати
   app.get<CodeParams>('/rooms/:code/ice-config', async (req): Promise<IceConfigDto> => {
     if (!roomManager.isMember(req.params.code.toUpperCase(), req.userId)) throw forbidden('Ви не в цій кімнаті');
-    const iceServers: IceConfigDto['iceServers'] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
-    if (env.turn.urls.length) iceServers.push({ urls: env.turn.urls, username: env.turn.username, credential: env.turn.credential });
-    return { iceServers };
+    return { iceServers: await getIceServers() };
   });
 }

@@ -20,6 +20,11 @@ export const env = {
   crossSiteCookies: process.env.COOKIE_CROSS_SITE === 'true',
   resendApiKey: process.env.RESEND_API_KEY || null,
   mailFrom: process.env.MAIL_FROM || 'JVof games <noreply@example.com>',
+  /** Cloudflare TURN (безкоштовно 1000 ГБ/міс): Key ID і API-токен з дашборда Cloudflare → Realtime → TURN */
+  cfTurn: {
+    keyId: process.env.CF_TURN_KEY_ID || null,
+    token: process.env.CF_TURN_API_TOKEN || null,
+  },
   turn: {
     urls: (process.env.TURN_URLS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
     username: process.env.TURN_USERNAME || undefined,

@@ -1449,3 +1449,17 @@ a.game-card:hover {
   border-color: var(--pink);
   box-shadow: 0 0 16px rgba(236, 72, 153, 0.45);
 }
+
+.tile-status {
+  position: absolute;
+  left: 50%;
+  top: 0.6rem;
+  transform: translateX(-50%);
+  z-index: 3;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(10, 8, 22, 0.75);
+  color: #fff;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
