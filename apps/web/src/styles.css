@@ -1399,3 +1399,19 @@ a.game-card:hover {
 .btn.icon svg {
   display: block;
 }
+
+/* дві активні гри поруч, «скоро» — під ними */
+.games-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.game-card.featured {
+  grid-column: auto;
+}
+.game-card.featured h3 {
+  font-size: 1.4rem;
+}
+@media (max-width: 640px) {
+  .games-grid {
+    grid-template-columns: 1fr;
+  }
+}

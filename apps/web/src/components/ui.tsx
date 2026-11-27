@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { PublicUser } from '@jvof/shared';
 import { useUi } from '../store/ui';
 
@@ -32,7 +33,8 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  return (
+  // Портал у body: інакше backdrop-filter батьківських панелей обмежує position: fixed
+  return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
         <div className="row" style={{ marginBottom: '0.8rem' }}>
@@ -44,7 +46,8 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

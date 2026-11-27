@@ -11,6 +11,7 @@
   "dependencies": {
     "@jvof/game-core": "^0.1.0",
     "@jvof/game-mafia": "^0.1.0",
+    "@jvof/game-spyfall": "^0.1.0",
     "@jvof/shared": "^0.1.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

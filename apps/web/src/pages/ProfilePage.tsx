@@ -4,10 +4,11 @@ import { AVATAR_COLORS, formatFriendCode, type BlockDto, type GameSummaryDto, ty
 import { ROLE_INFO, type Role } from '@jvof/game-mafia';
 import { Avatar, Modal, copyText, timeAgo } from '../components/ui';
 import { api } from '../lib/api';
+import { ROLE_TITLES } from './HomePage';
 import { useAuth } from '../store/auth';
 import { toast, toastError } from '../store/ui';
 
-const roleTitle = (r: string) => ROLE_INFO[r as Role]?.title ?? r;
+const roleTitle = (r: string) => ROLE_INFO[r as Role]?.title ?? ROLE_TITLES[r] ?? r;
 
 /** Зменшує фото до 128×128 і повертає data:URL (щоб не зберігати великі файли) */
 async function resizeImage(file: File): Promise<string> {

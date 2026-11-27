@@ -10,6 +10,7 @@
 import { io, type Socket } from 'socket.io-client';
 import type { ClientToServerEvents, RoomStateDto, ServerToClientEvents } from '@jvof/shared';
 import type { MafiaPlayerView, MafiaPublicState } from '@jvof/game-mafia';
+import type { SpyPlayerView, SpyPublicState } from '@jvof/game-spyfall';
 
 const API = process.env.API_URL ?? 'http://localhost:3001';
 const [codeArg, countArg] = process.argv.slice(2).filter((a) => !a.startsWith('--'));
@@ -72,7 +73,34 @@ function runBot(name: string, token: string, id: string) {
 
   const act = (action: unknown) => s.emit('game:action', { action }, (r) => !r.ok && console.log(`  ${name}: ${r.error}`));
 
+  async function thinkSpy() {
+    const g = state?.game?.publicState as SpyPublicState | undefined;
+    const v = view as unknown as SpyPlayerView | null;
+    if (!g || !v) return;
+    const key = `${g.phase}:${g.askerId}:${g.accusation?.accusedId}:${g.questionCount}`;
+    if (acted === key) return;
+    const others = g.players.filter((p) => p.id !== id).map((p) => p.id);
+    if (g.phase === 'QUESTIONS' && g.askerId === id) {
+      acted = key;
+      await delay(2500);
+      if (v.isSpy && Math.random() < 0.15) act({ type: 'guess', locationId: pick(g.locations)!.id });
+      else act({ type: 'ask', target: pick(others.filter((o) => !(g.lastQuestion?.from === o && g.lastQuestion.to === id))) });
+    } else if (g.phase === 'ACCUSATION' && g.accusation && g.accusation.accusedId !== id && !g.accusation.votedIds.includes(id)) {
+      acted = key;
+      await delay(1500);
+      act({ type: 'accuse_vote', yes: Math.random() < 0.7 });
+    } else if (g.phase === 'FINAL_VOTE') {
+      acted = key;
+      await delay(1500);
+      act({ type: 'final_vote', target: pick(others) });
+    } else if (g.phase === 'QUESTIONS' && g.questionCount >= 4 && Math.random() < 0.1 && !g.players.find((p) => p.id === id)?.usedAccusation) {
+      acted = key;
+      act({ type: 'accuse', target: pick(others) });
+    }
+  }
+
   async function think() {
+    if (state?.gameType === 'spyfall') return thinkSpy();
     const g = state?.game?.publicState as MafiaPublicState | undefined;
     const v = view;
     if (!g || !v || (!v.me?.alive && !(g.phase === 'EXECUTION' && g.execution?.targetId === id))) return;
@@ -114,8 +142,9 @@ function runBot(name: string, token: string, id: string) {
       startedOnce = true;
       setTimeout(() => s.emit('admin:start', (r) => console.log(r.ok ? `▶ ${name} почав гру` : `✖ старт: ${r.error}`)), 500);
     }
-    const g = st.game?.publicState as MafiaPublicState | undefined;
-    if (g?.phase === 'GAME_OVER' && st.adminId === id) console.log(`🏁 Кінець гри: ${g.aborted ? 'зупинено' : g.winner === 'mafia' ? 'перемогла мафія' : 'перемогли мирні'}`);
+    const g = st.game?.publicState as { phase?: string; winner?: string | null } | undefined;
+    const titles: Record<string, string> = { mafia: 'перемогла мафія', civilians: 'перемогли мирні', spy: 'переміг шпигун', locals: 'перемогли мешканці' };
+    if (g?.phase === 'GAME_OVER' && st.adminId === id) console.log(`🏁 Кінець гри: ${g.winner ? titles[g.winner] : 'зупинено'}`);
     void think();
   });
   s.on('player:view', (v) => {
